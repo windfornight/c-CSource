@@ -38,14 +38,14 @@ typedef struct _IMAGE_DOS_HEADER
 
 typedef struct IMAGE_FILE_HEADER
 {
-	WORD Machine;  
-	WORD NumberOfSections;  
-	DWORD TimeDateStamp; 
+	WORD Machine;
+	WORD NumberOfSections; 
+	DWORD TimeDateStamp;  
 	DWORD PointerToSymbolTable;  
 	DWORD NumberOfSymbols;
 	WORD SizeOfOptionalHeader;
 	WORD Characteristics;
-}IMAGE_FILE_HEADER;
+}IMAGE_FILE_HEADER;  //20
 
 typedef struct IMAGE_DATA_DIRECTORY
 {
@@ -90,32 +90,56 @@ typedef struct IMAGE_OPTIONAL_HEADER32
 
 typedef struct IMAGE_NT_HEADERS
 {
-	DWORD Signature;
-	IMAGE_FILE_HEADER FileHeader;
+	DWORD Signature;  //4
+	IMAGE_FILE_HEADER FileHeader;  //20
 	IMAGE_OPTIONAL_HEADER32 OptionalHeader;
 }IMAGE_NT_HEADERS;
 
 typedef struct IMAGE_SECTION_HEADER
 {
-	BYTE Name1[8];
+	BYTE Name1[8];  //8
 	union{
 		DWORD PhysicalAddress;
 		DWORD VirtualSize;
-	} Misc; 
-	DWORD VirtualAddress;  
-	DWORD SizeOfRawData; 
-	DWORD PointerToRawData; 
-	DWORD PointerToRelocations;  
-	DWORD PointerToLinenumbers;  
-	WORD NumberOfRelocations;  
-	WORD NumberOfLinenumbers;  
-	DWORD Characteristics;
-}IMAGE_SECTION_HEADER;
+	} Misc;   //4
+	DWORD VirtualAddress;  //4  
+	DWORD SizeOfRawData;   //4
+	DWORD PointerToRawData;   //4
+	DWORD PointerToRelocations;  //4
+	DWORD PointerToLinenumbers;    //4
+	WORD NumberOfRelocations;  //2
+	WORD NumberOfLinenumbers;  //2
+	DWORD Characteristics;  //4
+}IMAGE_SECTION_HEADER;  //40
+
+typedef struct _IMAGE_EXPORT_DIRECTORY
+{
+	DWORD Characteristics;  //未使用
+	DWORD TimeDateStamp;  //时间戳
+	WORD MajorVersion;   //未使用
+	WORD MinorVersion;   //未使用
+	DWORD Name;  //指向该导出表文件名的字符串的RVA
+	DWORD Base;  //导出函数起始序号
+	DWORD NumberOfFunctions; //所有导出函数的个数
+	DWORD NumberOfNames;  //以函数名字导出的函数个数
+	DWORD AddressOfFunctions;  //导出函数地址表RVA
+	DWORD AddressOfNames;  //导出函数名称表RVA
+	DWORD AddressOfNameOrdinals; //导出函数序号表RVA
+}IMAGE_EXPORT_DIRECTORY;
+
+typedef struct _IMAGE_BASE_RELOCATION
+{
+	DWORD VirtualAddress; //重定位内存页的起始RVA
+	DWORD Size; //重定位块的长度
+}IMAGE_BASE_RELOCATION;
+
+
 
 typedef IMAGE_DOS_HEADER* PIMAGE_DOS_HEADER;
 typedef IMAGE_NT_HEADERS* PIMAGE_NT_HEADERS;
 typedef IMAGE_FILE_HEADER* PIMAGE_FILE_HEADER;
 typedef IMAGE_OPTIONAL_HEADER32* PIMAGE_OPTIONAL_HEADER32;
 typedef IMAGE_SECTION_HEADER* PIMAGE_SECTION_HEADER;
+typedef IMAGE_EXPORT_DIRECTORY* PIMAGE_EXPORT_DIRECTORY;
 
 #endif

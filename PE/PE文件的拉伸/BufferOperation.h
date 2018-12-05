@@ -18,4 +18,19 @@ LPVOID reduceToFileBuff(LPVOID imageBuff);
 //以二进制形式写文件
 void writePEFile(const char* outFile, LPVOID fileBuff);
 
+//本地模式，加一个壳（messagebox）在程序运行前
+void addShellCode(LPVOID fileBuff, int sectionIdx);
+
+//RVA->FOA
+DWORD convRVAtoFOA(LPVOID fileBuff, DWORD rva);
+
+//打印目录
+void printDirectory(LPVOID fileBuff);
+
+//打印导出表
+void printExportDirectory(LPVOID fileBuff);
+
+//增加一个节
+void addSection(const char* inFile, const char* outFile);
+
 #endif
