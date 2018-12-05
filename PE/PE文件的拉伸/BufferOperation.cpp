@@ -346,8 +346,6 @@ void writePEFile(const char* outFile, LPVOID pFileBuffer)
 		size = size / pOptionHeader->FileAlignment + pOptionHeader->FileAlignment;
 	}
 
-	printf("size:%x, %x\n", size, pPEHeader->NumberOfSections);
-
 
 	FILE* fileWrite = fopen(outFile, "wb");
 	
@@ -443,10 +441,10 @@ void addShellCode(LPVOID pFileBuffer, int sectionIdx)
 }
 
 
-//文件对齐和内存对齐不一致的时候会出问题了
+//文件对齐和内存对齐不一致的是后
 void addSection(const char* inFile, const char* outFile)
 {
-	int addSize = 0x100;
+	int addSize = 0x1000;
 	FILE* file = fopen(inFile, "rb");
 	if(!file){
 		printf("file open error!");
@@ -463,7 +461,6 @@ void addSection(const char* inFile, const char* outFile)
 
 	fseek(file, 0, SEEK_SET);
 	memset(ptBuff, 0, cnt + addSize);
-	printf("cnt----->%x\n", cnt);
 	//一次性读取
 	size_t n = fread(ptBuff, cnt, 1, file);	
 	if(!n)	
@@ -495,11 +492,11 @@ void addSection(const char* inFile, const char* outFile)
 	PIMAGE_SECTION_HEADER endPSHE = addPSHE + 1; //结尾的节 
 
 	//结尾的街区置0
-	/*for(int i = 0; i < 40; ++i)
+	for(int i = 0; i < sizeof(IMAGE_SECTION_HEADER); ++i)
 	{
-	*((char *)endPSHE + i) = 0;
+		*((char *)endPSHE + i) = 0;
 	}
-	*/
+	
 
 	for(int i = 0; i < 8; ++i)
 	{
