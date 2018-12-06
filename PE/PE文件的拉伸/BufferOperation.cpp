@@ -1,11 +1,16 @@
 #include "stdafx.h"
-//#include "stdio.h"
-#include "malloc.h"
-#include "string.h"
+#include <malloc.h>
+#include <string.h>
 
 #include "BufferOperation.h"
 
-LPVOID readPEFile(const char* inFile)
+DWORD getAlignSize(DWORD size, DWORD alignSize)
+{
+	DWORD newSize = (size / alignSize * alignSize) + (size % alignSize ? alignSize : 0);
+	return newSize;
+}
+
+LPVOID readFile(const char* inFile)
 {
 	FILE* file = fopen(inFile, "rb");
 	if(!file){
@@ -39,6 +44,27 @@ LPVOID readPEFile(const char* inFile)
 	return ptBuff;
 }
 
+bool isValidPEFile(LPVOID pFileBuffer)
+{
+	PIMAGE_DOS_HEADER pDosHeader = NULL;
+	PIMAGE_NT_HEADERS pNTHeader = NULL;
+	
+	//判断是否有效的MZ标志
+	if(*((PWORD)pFileBuffer) != IMAGE_DOS_SIGNATURE)
+	{
+		printf("invalid MZ signature!\n");
+		return false ;
+	}
+	pDosHeader = (PIMAGE_DOS_HEADER)pFileBuffer;
+	pNTHeader = (PIMAGE_NT_HEADERS)((DWORD)pFileBuffer + pDosHeader->e_lfanew);  //char *
+	if (pNTHeader->Signature != IMAGE_NT_SIGNATURE)
+	{
+		printf("invalid PE signature!\n");
+		free(pFileBuffer);
+		return false;
+	}
+	return true;
+}
 
 //是否一定要到节中去找数据？？？
 DWORD convRVAtoFOA(LPVOID pFileBuffer, DWORD rva)
@@ -72,17 +98,15 @@ void printPEStruct(const char* filePath)
 	PIMAGE_OPTIONAL_HEADER32 pOptionHeader = NULL;
 	PIMAGE_SECTION_HEADER pSectionHeader = NULL;
 
-	pFileBuffer = readPEFile(filePath);
+	pFileBuffer = readFile(filePath);
 	if(!pFileBuffer)
 	{
 		printf("Error to read file!\n");
 		return ;
 	}
 
-	//判断是否有效的MZ标志
-	if(*((PWORD)pFileBuffer) != IMAGE_DOS_SIGNATURE)
+	if (!isValidPEFile(pFileBuffer))
 	{
-		printf("invalid MZ signature!\n");
 		free(pFileBuffer);
 		return ;
 	}
@@ -94,14 +118,7 @@ void printPEStruct(const char* filePath)
 	printf("MZ signature:%x\n", pDosHeader->e_magic);
 	printf("PE offset:%x\n", pDosHeader->e_lfanew);
 
-	//判断是否有效的PE标志
 	pNTHeader = (PIMAGE_NT_HEADERS)((DWORD)pFileBuffer + pDosHeader->e_lfanew);  //char *
-	if (pNTHeader->Signature != IMAGE_NT_SIGNATURE)
-	{
-		printf("invalid PE signature!\n");
-		free(pFileBuffer);
-		return;
-	}
 
 	//打印NT头
 	printf("*****************NT*******************\n");
@@ -114,7 +131,6 @@ void printPEStruct(const char* filePath)
 	printf("number of section:%x\n", pPEHeader->NumberOfSections);
 	printf("SizeOfOptionalHeader:%x\n", pPEHeader->SizeOfOptionalHeader);
 	
-
 	//可选PE头, 结构体对齐问题，这里没有问题
 	pOptionHeader = /*&(pNTHeader->OptionalHeader);*/(PIMAGE_OPTIONAL_HEADER32)((DWORD)pPEHeader+IMAGE_SIZEOF_FILE_HEADER);
 	printf("**************OPTION_PE***************\n");
@@ -138,7 +154,6 @@ void printPEStruct(const char* filePath)
 
 	//printDirectory(pFileBuffer);
 	//printExportDirectory(pFileBuffer);
-	
 	
 	//释放内存
 	free(pFileBuffer);
@@ -225,7 +240,6 @@ LPVOID extendToImageBuff(LPVOID pFileBuffer)
 	PIMAGE_OPTIONAL_HEADER32 pOptionHeader = &(pNTHeader->OptionalHeader);;
 	PIMAGE_SECTION_HEADER pSectionHeader = (PIMAGE_SECTION_HEADER)((DWORD)pOptionHeader + pPEHeader->SizeOfOptionalHeader);
 
-
 	size_t size = pOptionHeader->SizeOfImage;
 	LPVOID pImageBuffer = malloc(size);
 	if(!pImageBuffer){
@@ -259,6 +273,8 @@ LPVOID extendToImageBuff(LPVOID pFileBuffer)
 			*(pISection + j) = ch;
 		}
 	}
+
+	free(pFileBuffer);
 
 	return pImageBuffer;
 }
@@ -318,18 +334,17 @@ LPVOID reduceToFileBuff(LPVOID pImageBuffer)
 		}
 	}
 
+	free(pImageBuffer);
 	return pFileBuffer;
 }
 
-
-void writePEFile(const char* outFile, LPVOID pFileBuffer)
+size_t getPEFileSize(LPVOID pFileBuffer)
 {
 	PIMAGE_DOS_HEADER pDosHeader = (PIMAGE_DOS_HEADER)pFileBuffer;
 	PIMAGE_NT_HEADERS pNTHeader = (PIMAGE_NT_HEADERS)((DWORD)pFileBuffer + pDosHeader->e_lfanew);;
 	PIMAGE_FILE_HEADER pPEHeader =  &(pNTHeader->FileHeader);
 	PIMAGE_OPTIONAL_HEADER32 pOptionHeader = &(pNTHeader->OptionalHeader);;
 	PIMAGE_SECTION_HEADER pSectionHeader = (PIMAGE_SECTION_HEADER)((DWORD)pOptionHeader + pPEHeader->SizeOfOptionalHeader);
-
 	size_t size = 0;
 	int sectionCnt = pPEHeader->NumberOfSections;
 	//遍历并计算文件的大小
@@ -343,10 +358,22 @@ void writePEFile(const char* outFile, LPVOID pFileBuffer)
 	}
 	if(size % pOptionHeader->FileAlignment)
 	{
-		size = size / pOptionHeader->FileAlignment + pOptionHeader->FileAlignment;
+		printf("error size!\n");
+		return 0;
 	}
+	return size;
+}
 
+void writePEFile(const char* outFile, LPVOID pFileBuffer)
+{
+	PIMAGE_DOS_HEADER pDosHeader = (PIMAGE_DOS_HEADER)pFileBuffer;
+	PIMAGE_NT_HEADERS pNTHeader = (PIMAGE_NT_HEADERS)((DWORD)pFileBuffer + pDosHeader->e_lfanew);;
+	PIMAGE_FILE_HEADER pPEHeader =  &(pNTHeader->FileHeader);
+	PIMAGE_OPTIONAL_HEADER32 pOptionHeader = &(pNTHeader->OptionalHeader);;
+	PIMAGE_SECTION_HEADER pSectionHeader = (PIMAGE_SECTION_HEADER)((DWORD)pOptionHeader + pPEHeader->SizeOfOptionalHeader);
 
+	size_t size =  getPEFileSize(pFileBuffer);
+	//printf("write size: %x\n", size);
 	FILE* fileWrite = fopen(outFile, "wb");
 	
 	int res = fwrite(pFileBuffer, size, 1, fileWrite);
@@ -356,14 +383,6 @@ void writePEFile(const char* outFile, LPVOID pFileBuffer)
 		fclose(fileWrite);
 		return ; 
 	}
-
-	/*for(int i = 0; i < size; ++i)
-	{
-		if(*((char*)pFileBuffer + i) != *((char *)orgFileBuff + i))
-		{
-			printf("idx: %d\n", i);
-		}
-	}*/
 	
 	fclose(fileWrite);
 	fileWrite = NULL;
@@ -378,7 +397,6 @@ char shellCode[] = {
 #define CODE_SIZE 18
 #define FIRST_OFFSET 13
 #define SECOND_OFFSET 18
-
 
 //本计算机入口地址
 #define MESSAGE_BOX_ADDRESS 0x7474FDAE
@@ -440,51 +458,36 @@ void addShellCode(LPVOID pFileBuffer, int sectionIdx)
 	pSHToAdd->Characteristics = (pSHToAdd->Characteristics | fPSH->Characteristics);
 }
 
-
-//文件对齐和内存对齐不一致的是后
-void addSection(const char* inFile, const char* outFile)
+void dataCopy(LPVOID des, LPVOID src, size_t size)
 {
-	int addSize = 0x1000;
-	FILE* file = fopen(inFile, "rb");
-	if(!file){
-		printf("file open error!");
-		return ;
+	for(int i = 0; i < size; ++i)
+	{
+		*((char *)((DWORD)des + i)) = *((char *)((DWORD)src + i)); 
 	}
-	fseek(file, 0, SEEK_END);
-	long int cnt = ftell(file); //字节个数
-	LPVOID ptBuff = malloc(cnt + addSize);
-	if(!ptBuff){
-		printf("assign buff error!");
-		fclose(file);
-		return ;
+}
+
+//如果不做处理直接在最后一节加数据其实是不一定完全正确的（并不能保证节表之后的数据没有作用）
+LPVOID addSection(LPVOID pFileBuffer, int addSize)
+{
+	if(!isValidPEFile(pFileBuffer))
+	{
+		free(pFileBuffer);
+		return NULL;
 	}
 
-	fseek(file, 0, SEEK_SET);
-	memset(ptBuff, 0, cnt + addSize);
-	//一次性读取
-	size_t n = fread(ptBuff, cnt, 1, file);	
-	if(!n)	
-	{	
-		printf("Fail to read file! ");
-		free(ptBuff);
-		fclose(file);
-		return ;
-	}	
+	size_t orgSize = getPEFileSize(pFileBuffer);
 
-	fclose(file);
-
-	LPVOID pFileBuffer = ptBuff;
 	PIMAGE_DOS_HEADER pDosHeader = (PIMAGE_DOS_HEADER)pFileBuffer;
 	PIMAGE_NT_HEADERS pNTHeader = (PIMAGE_NT_HEADERS)((DWORD)pFileBuffer + pDosHeader->e_lfanew);;
 	PIMAGE_FILE_HEADER pPEHeader =  &(pNTHeader->FileHeader);
 	PIMAGE_OPTIONAL_HEADER32 pOptionHeader = &(pNTHeader->OptionalHeader);;
 	PIMAGE_SECTION_HEADER pSectionHeader = (PIMAGE_SECTION_HEADER)((DWORD)pOptionHeader + pPEHeader->SizeOfOptionalHeader);
 
-	DWORD sizeToLastSection = (DWORD)pOptionHeader + pPEHeader->SizeOfOptionalHeader + pPEHeader->NumberOfSections * sizeof(IMAGE_SECTION_HEADER);
-	if(pOptionHeader->SizeOfHeaders - sizeToLastSection < 2 * sizeof(IMAGE_SECTION_HEADER))
+	DWORD sizeToLastSection = (DWORD)pOptionHeader - (DWORD)pDosHeader + pPEHeader->SizeOfOptionalHeader + pPEHeader->NumberOfSections * sizeof(IMAGE_SECTION_HEADER);
+	if(pOptionHeader->SizeOfHeaders - sizeToLastSection < 2 * sizeof(IMAGE_SECTION_HEADER))  //只做空间的检查，并不保证一定能执行
 	{
 		printf("add section failed!\n");
-		return ;
+		return NULL;
 	}
 
 	PIMAGE_SECTION_HEADER lastPSHE = pSectionHeader + pPEHeader->NumberOfSections - 1;  //最后一个节
@@ -497,30 +500,125 @@ void addSection(const char* inFile, const char* outFile)
 		*((char *)endPSHE + i) = 0;
 	}
 	
-
-	for(int i = 0; i < 8; ++i)
-	{
-		addPSHE->Name1[i] = 'A';
-	}
-	addPSHE->Misc.VirtualSize = addSize;
+	strncpy(addPSHE->Name1, "ADDSEC", 8);
+	addPSHE->Misc.VirtualSize = addSize;//getAlignSize(addSize, pOptionHeader->FileAlignment);
 	addPSHE->VirtualAddress = pOptionHeader->SizeOfImage;
-	addPSHE->SizeOfRawData = addSize;
-
-	DWORD pointer = lastPSHE->SizeOfRawData + lastPSHE->PointerToRawData;
-	//printf("align:%x\n", pOptionHeader->FileAlignment);
-	if(pointer % pOptionHeader->FileAlignment)
-	{
-		pointer /= pOptionHeader->FileAlignment;
-		pointer += pOptionHeader->FileAlignment;
-	}
-
-	addPSHE->PointerToRawData = pointer;
+	addPSHE->SizeOfRawData = getAlignSize(addSize, pOptionHeader->FileAlignment);
+	addPSHE->PointerToRawData = lastPSHE->SizeOfRawData + lastPSHE->PointerToRawData;
 	addPSHE->Characteristics = lastPSHE->Characteristics;  //直接复制其属性
+	
+	//其他成员直接致空
+	addPSHE->PointerToRelocations = 0;
+	addPSHE->PointerToLinenumbers = 0;
+	addPSHE->NumberOfRelocations = 0;
+	addPSHE->NumberOfLinenumbers = 0;
+
 	pPEHeader->NumberOfSections += 1;
 	pOptionHeader->SizeOfImage += addSize;
-	
-	writePEFile(outFile, pFileBuffer);
 
+	size_t newSize = orgSize + addPSHE->SizeOfRawData;
+	LPVOID newPFBuff = malloc(newSize);
+	memset(newPFBuff, 0, newSize);
+	dataCopy(newPFBuff, pFileBuffer, orgSize);
 	free(pFileBuffer);
+
+	return newPFBuff;
 }
+
+void moveNTHead(LPVOID pFileBuffer)
+{
+	PIMAGE_DOS_HEADER pDosHeader = (PIMAGE_DOS_HEADER)pFileBuffer;
+	PIMAGE_NT_HEADERS pNTHeader = (PIMAGE_NT_HEADERS)((DWORD)pFileBuffer + pDosHeader->e_lfanew);;
+	PIMAGE_FILE_HEADER pPEHeader =  &(pNTHeader->FileHeader);
+	PIMAGE_OPTIONAL_HEADER32 pOptionHeader = &(pNTHeader->OptionalHeader);
+	PIMAGE_SECTION_HEADER pSectionHeader = (PIMAGE_SECTION_HEADER)((DWORD)pOptionHeader + pPEHeader->SizeOfOptionalHeader);
+	if(pDosHeader->e_lfanew == sizeof(IMAGE_DOS_HEADER))
+	{
+		return ;
+	}
+	PIMAGE_SECTION_HEADER endPSH = pSectionHeader + pPEHeader->NumberOfSections;
+	size_t size = (DWORD)endPSH - (DWORD)pNTHeader + sizeof(IMAGE_SECTION_HEADER);
+	LPVOID pDes = (LPVOID)((DWORD)pFileBuffer + sizeof(IMAGE_DOS_HEADER));
+	dataCopy(pDes, (LPVOID)pNTHeader, size);
+	pDosHeader->e_lfanew = sizeof(IMAGE_DOS_HEADER);
+}
+
+LPVOID mergeAllSections(LPVOID pFileBuffer)
+{
+	PIMAGE_DOS_HEADER pDosHeader = (PIMAGE_DOS_HEADER)pFileBuffer;
+	PIMAGE_NT_HEADERS pNTHeader = (PIMAGE_NT_HEADERS)((DWORD)pFileBuffer + pDosHeader->e_lfanew);;
+	PIMAGE_FILE_HEADER pPEHeader =  &(pNTHeader->FileHeader);
+	PIMAGE_OPTIONAL_HEADER32 pOptionHeader = &(pNTHeader->OptionalHeader);
+	PIMAGE_SECTION_HEADER pSectionHeader = (PIMAGE_SECTION_HEADER)((DWORD)pOptionHeader + pPEHeader->SizeOfOptionalHeader);
+
+	//printf("size of image:%x\n", pOptionHeader->SizeOfImage);
+
+	if(pPEHeader->NumberOfSections <= 1)
+	{
+		return pFileBuffer;
+	}
+
+	LPVOID pImageBuffer = extendToImageBuff(pFileBuffer);
+	pDosHeader = (PIMAGE_DOS_HEADER)pImageBuffer;
+	pNTHeader = (PIMAGE_NT_HEADERS)((DWORD)pImageBuffer + pDosHeader->e_lfanew);;
+	pPEHeader =  &(pNTHeader->FileHeader);
+	pOptionHeader = &(pNTHeader->OptionalHeader);
+	pSectionHeader = (PIMAGE_SECTION_HEADER)((DWORD)pOptionHeader + pPEHeader->SizeOfOptionalHeader);
+
+	for(int i = 1; i < pPEHeader->NumberOfSections; ++i)
+	{
+		pSectionHeader->Characteristics |= (pSectionHeader + i)->Characteristics;
+	}
+
+	PIMAGE_SECTION_HEADER lastPSH = pSectionHeader + pPEHeader->NumberOfSections - 1;
+	DWORD max = (lastPSH->SizeOfRawData > lastPSH->Misc.VirtualSize)?lastPSH->SizeOfRawData:lastPSH->Misc.VirtualSize;
+	//printf("%x, %x, %x\n", max, lastPSH->SizeOfRawData, lastPSH->Misc.VirtualSize);
+	pSectionHeader->SizeOfRawData = getAlignSize(lastPSH->VirtualAddress + max - pSectionHeader->VirtualAddress, pOptionHeader->FileAlignment);
+	pSectionHeader->Misc.VirtualSize = pSectionHeader->SizeOfRawData;  //这个属性很重要（为什么会用virtualsize大于sizeofrawdata的情况）
+
+	//printf("size of raw data:%x\n", pSectionHeader->SizeOfRawData);
+	//printf("size of header:%x, first address:%x, first raw pointer:%x\n", pOptionHeader->SizeOfHeaders, pSectionHeader->VirtualAddress, pSectionHeader->PointerToRawData);
+	memset((pSectionHeader+1), 0, sizeof(IMAGE_SECTION_HEADER));
+	pPEHeader->NumberOfSections = 1;
+	return reduceToFileBuff(pImageBuffer);
+}
+
+
+//拉伸后再扩大，避免virtuasize大于sizeofrawdata可能带来的错误
+LPVOID extendLastSection(LPVOID pFileBuffer, size_t size)
+{
+	LPVOID pImageBuffer = extendToImageBuff(pFileBuffer);
+	PIMAGE_DOS_HEADER pDosHeader = (PIMAGE_DOS_HEADER)pImageBuffer;
+	PIMAGE_NT_HEADERS pNTHeader = (PIMAGE_NT_HEADERS)((DWORD)pImageBuffer + pDosHeader->e_lfanew);;
+	PIMAGE_FILE_HEADER pPEHeader =  &(pNTHeader->FileHeader);
+	PIMAGE_OPTIONAL_HEADER32 pOptionHeader = &(pNTHeader->OptionalHeader);
+	PIMAGE_SECTION_HEADER pSectionHeader = (PIMAGE_SECTION_HEADER)((DWORD)pOptionHeader + pPEHeader->SizeOfOptionalHeader);
+
+	size_t alignExSize = getAlignSize(size, pOptionHeader->SectionAlignment);
+	DWORD orgSize = pOptionHeader->SizeOfImage;
+
+	LPVOID newPImgBuffer = malloc(orgSize + alignExSize);
+	memset(newPImgBuffer, 0, orgSize+alignExSize);
+	dataCopy(newPImgBuffer, pImageBuffer, orgSize);
+
+	free(pImageBuffer);
+
+	pDosHeader = (PIMAGE_DOS_HEADER)newPImgBuffer;
+	pNTHeader = (PIMAGE_NT_HEADERS)((DWORD)newPImgBuffer + pDosHeader->e_lfanew);;
+	pPEHeader =  &(pNTHeader->FileHeader);
+	pOptionHeader = &(pNTHeader->OptionalHeader);
+	pSectionHeader = (PIMAGE_SECTION_HEADER)((DWORD)pOptionHeader + pPEHeader->SizeOfOptionalHeader);
+
+	PIMAGE_SECTION_HEADER lastPSH = pSectionHeader + pPEHeader->NumberOfSections - 1;
+	DWORD max = (lastPSH->SizeOfRawData > lastPSH->Misc.VirtualSize)?lastPSH->SizeOfRawData:lastPSH->Misc.VirtualSize;
+	printf("%x, %x, %x\n", max, lastPSH->SizeOfRawData, lastPSH->Misc.VirtualSize);
+	//lastPSH->Misc.VirtualSize = max + size;
+	lastPSH->SizeOfRawData = getAlignSize(max, pOptionHeader->SectionAlignment)+alignExSize;  //这个属性值得注意
+	lastPSH->Misc.VirtualSize = lastPSH->SizeOfRawData;
+	pOptionHeader->SizeOfImage += alignExSize;
+
+	return reduceToFileBuff(newPImgBuffer);
+}
+
+
 

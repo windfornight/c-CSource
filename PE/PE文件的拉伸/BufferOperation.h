@@ -4,7 +4,9 @@
 #define _BUFFER_OPERATION_H_
 
 //以二进制的形式读取文件
-LPVOID readPEFile(const char* inFile);
+LPVOID readFile(const char* inFile);
+
+bool isValidPEFile(LPVOID fileBuff);
 
 //打印一些相关的PE解构
 void printPEStruct(const char* filePath);
@@ -31,6 +33,23 @@ void printDirectory(LPVOID fileBuff);
 void printExportDirectory(LPVOID fileBuff);
 
 //增加一个节
-void addSection(const char* inFile, const char* outFile);
+LPVOID addSection(LPVOID pFileBuffer, int addSize);
+
+//对齐的大小
+DWORD getAlignSize(DWORD size, DWORD alignSize);
+
+//遍历获取pe文件的大小(可能会和真实的大小有出入)
+size_t getPEFileSize(LPVOID pFileBuffer);
+
+void dataCopy(LPVOID des, LPVOID src, size_t size);
+
+//移动NT头文件到DOS头之后
+void moveNTHead(LPVOID pFileBuffer);
+
+//合并所有的节成为一个节
+LPVOID mergeAllSections(LPVOID pFileBuffer);
+
+//扩大最后一个节
+LPVOID extendLastSection(LPVOID pFileBuffer, size_t size);
 
 #endif
