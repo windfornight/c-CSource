@@ -230,6 +230,51 @@ void printExportDirectory(LPVOID pFileBuffer)
 	}
 }
 
+void printRelocationDiretory(LPVOID pFileBuffer)
+{
+	PIMAGE_DOS_HEADER pDosHeader = (PIMAGE_DOS_HEADER)pFileBuffer;
+	PIMAGE_NT_HEADERS pNTHeader = (PIMAGE_NT_HEADERS)((DWORD)pFileBuffer + pDosHeader->e_lfanew);;
+	PIMAGE_FILE_HEADER pPEHeader =  &(pNTHeader->FileHeader);
+	PIMAGE_OPTIONAL_HEADER32 pOptionHeader = &(pNTHeader->OptionalHeader);;
+	PIMAGE_SECTION_HEADER pSectionHeader = (PIMAGE_SECTION_HEADER)((DWORD)pOptionHeader + pPEHeader->SizeOfOptionalHeader);
+	IMAGE_DATA_DIRECTORY *pImageDataDirectory = pOptionHeader->DataDirectory;
+
+	printf("*******************RELOCATION-DIRECTORY*************************\n");
+	//重定位表
+	PIMAGE_BASE_RELOCATION pImageBaseRelocation = (PIMAGE_BASE_RELOCATION)((DWORD)pFileBuffer + convRVAtoFOA(pFileBuffer, (pImageDataDirectory+5)->VirtualAddress));
+	while(pImageBaseRelocation->VirtualAddress)
+	{
+		int size = (pImageBaseRelocation->Size - sizeof(IMAGE_BASE_RELOCATION)) / 2;
+		PWORD relocTbl = (PWORD)(pImageBaseRelocation+1);
+		printf("relocation virtual address:%x, cnt:%d\n", pImageBaseRelocation->VirtualAddress, size);
+		int needNewLine = 0;
+		for(int idx = 0; idx < size; ++idx)
+		{
+			needNewLine = 1;
+			printf("%04x  ", relocTbl[idx]);
+
+			//16个字节，高4位是3的时候需要重定位
+			int value = relocTbl[idx];
+			if((value >> 12) == 3)
+			{
+				DWORD addrReloc = pImageBaseRelocation->VirtualAddress + (value & 0xFFF);
+				//printf("addrReoc:%x\n", addrReloc);
+			}
+
+			if((idx + 1) % 8 == 0)
+			{
+				needNewLine = 0;
+				printf("\n");
+			}
+		}
+		if(needNewLine)
+		{
+			printf("\n");
+		}
+		pImageBaseRelocation = (PIMAGE_BASE_RELOCATION)((DWORD)pImageBaseRelocation + pImageBaseRelocation->Size);
+	}
+
+}
 
 LPVOID extendToImageBuff(LPVOID pFileBuffer)
 {
@@ -725,4 +770,48 @@ DWORD getFuncAddrByOrdinal(LPVOID pFileBuffer, int ordinal)
 	}
 	return 0;
 }
+
+void changeImageBase(LPVOID pFileBuffer, DWORD newBase)
+{
+	PIMAGE_DOS_HEADER pDosHeader = (PIMAGE_DOS_HEADER)pFileBuffer;
+	PIMAGE_NT_HEADERS pNTHeader = (PIMAGE_NT_HEADERS)((DWORD)pFileBuffer + pDosHeader->e_lfanew);;
+	PIMAGE_FILE_HEADER pPEHeader =  &(pNTHeader->FileHeader);
+	PIMAGE_OPTIONAL_HEADER32 pOptionHeader = &(pNTHeader->OptionalHeader);;
+	PIMAGE_SECTION_HEADER pSectionHeader = (PIMAGE_SECTION_HEADER)((DWORD)pOptionHeader + pPEHeader->SizeOfOptionalHeader);
+	IMAGE_DATA_DIRECTORY *pImageDataDirectory = pOptionHeader->DataDirectory;
+
+	DWORD delta = newBase - pOptionHeader->ImageBase;
+
+	//重定位表
+	PIMAGE_BASE_RELOCATION pImageBaseRelocation = (PIMAGE_BASE_RELOCATION)((DWORD)pFileBuffer + convRVAtoFOA(pFileBuffer, (pImageDataDirectory+5)->VirtualAddress));
+	while(pImageBaseRelocation->VirtualAddress)
+	{
+		int size = (pImageBaseRelocation->Size - sizeof(IMAGE_BASE_RELOCATION)) / 2;
+		PWORD relocTbl = (PWORD)(pImageBaseRelocation+1);
+		for(int idx = 0; idx < size; ++idx)
+		{
+			//16个字节，高4位是3的时候指向的RVA需要重定位
+			int value = relocTbl[idx];
+			if((value >> 12) == 3)
+			{
+				DWORD addrReloc = pImageBaseRelocation->VirtualAddress + (value & 0xFFF);
+				DWORD* modifyAddr = (DWORD*)((DWORD)pFileBuffer + convRVAtoFOA(pFileBuffer, addrReloc));
+				*modifyAddr += delta;
+			}
+		}
+		pImageBaseRelocation = (PIMAGE_BASE_RELOCATION)((DWORD)pImageBaseRelocation + pImageBaseRelocation->Size);
+	}
+
+	pOptionHeader->ImageBase = newBase;
+}
+
+LPVOID moveExpDirToNewSec(LPVOID pFileBuffer)
+{
+
+}
+
+
+
+
+
 

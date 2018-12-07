@@ -61,4 +61,15 @@ DWORD getFuncAddrByName(LPVOID pFileBuffer, const char* funcName);
 //根据导出表查找函数地址， 返回的是RVA
 DWORD getFuncAddrByOrdinal(LPVOID pFileBuffer, int ordinal);
 
+//打印重定位表
+void printRelocationDiretory(LPVOID pFileBuffer);
+
+//修改imagebase
+void changeImageBase(LPVOID pFileBuffer, DWORD newBase);
+
+//移动导出表到新加的节
+LPVOID moveExpDirToNewSec(LPVOID pFileBuffer);
+
+//移动重定位表到新加的节
+
 #endif
