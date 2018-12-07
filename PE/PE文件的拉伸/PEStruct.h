@@ -112,6 +112,8 @@ typedef struct IMAGE_SECTION_HEADER
 	DWORD Characteristics;  //4
 }IMAGE_SECTION_HEADER;  //40
 
+
+//导出表结构
 typedef struct _IMAGE_EXPORT_DIRECTORY
 {
 	DWORD Characteristics;  //未使用
@@ -124,7 +126,7 @@ typedef struct _IMAGE_EXPORT_DIRECTORY
 	DWORD NumberOfNames;  //以函数名字导出的函数个数
 	DWORD AddressOfFunctions;  //导出函数地址表RVA
 	DWORD AddressOfNames;  //导出函数名称表RVA
-	DWORD AddressOfNameOrdinals; //导出函数序号表RVA
+	DWORD AddressOfNameOrdinals; //导出函数序号表RVA(注意，这个是一个指向WORD类型的数组)
 }IMAGE_EXPORT_DIRECTORY;
 
 typedef struct _IMAGE_BASE_RELOCATION

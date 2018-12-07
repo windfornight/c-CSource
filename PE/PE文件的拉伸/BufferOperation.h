@@ -52,4 +52,13 @@ LPVOID mergeAllSections(LPVOID pFileBuffer);
 //扩大最后一个节
 LPVOID extendLastSection(LPVOID pFileBuffer, size_t size);
 
+//失败，修改改用dtdebug查查看
+void addShellCodeTest(const char* inFile, const char* outFile);
+
+//根据导出表查找函数地址，返回的是RVA
+DWORD getFuncAddrByName(LPVOID pFileBuffer, const char* funcName);
+
+//根据导出表查找函数地址， 返回的是RVA
+DWORD getFuncAddrByOrdinal(LPVOID pFileBuffer, int ordinal);
+
 #endif

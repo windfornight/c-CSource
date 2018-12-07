@@ -66,7 +66,7 @@ bool isValidPEFile(LPVOID pFileBuffer)
 	return true;
 }
 
-//是否一定要到节中去找数据？？？
+//是否一定要到节中去找数据
 DWORD convRVAtoFOA(LPVOID pFileBuffer, DWORD rva)
 {
 	PIMAGE_DOS_HEADER pDosHeader = (PIMAGE_DOS_HEADER)pFileBuffer;
@@ -189,7 +189,6 @@ void printExportDirectory(LPVOID pFileBuffer)
 	PIMAGE_FILE_HEADER pPEHeader =  &(pNTHeader->FileHeader);
 	PIMAGE_OPTIONAL_HEADER32 pOptionHeader = &(pNTHeader->OptionalHeader);;
 	PIMAGE_SECTION_HEADER pSectionHeader = (PIMAGE_SECTION_HEADER)((DWORD)pOptionHeader + pPEHeader->SizeOfOptionalHeader);
-
 	IMAGE_DATA_DIRECTORY *pImageDataDirectory = pOptionHeader->DataDirectory;
 
 	//导出表
@@ -399,7 +398,7 @@ char shellCode[] = {
 #define SECOND_OFFSET 18
 
 //本计算机入口地址
-#define MESSAGE_BOX_ADDRESS 0x7474FDAE
+#define MESSAGE_BOX_ADDRESS 0x76BAFDAE
 
 //计算好像没有什么问题，执行却失败，原因待查
 void addShellCode(LPVOID pFileBuffer, int sectionIdx)
@@ -419,14 +418,14 @@ void addShellCode(LPVOID pFileBuffer, int sectionIdx)
 
 	PIMAGE_SECTION_HEADER pSHToAdd = pSectionHeader + (sectionIdx - 1);
 
-	if (pSHToAdd->SizeOfRawData - pSHToAdd->Misc.VirtualSize < CODE_SIZE)
+	/*if (pSHToAdd->SizeOfRawData - pSHToAdd->Misc.VirtualSize < CODE_SIZE)
 	{
 		printf("not enough free memory!\n");
 		return ;
-	}
+	}*/
 
 	//拷贝数据
-	DWORD pCodeBegin = (DWORD)pFileBuffer+pSHToAdd->PointerToRawData + pSHToAdd->Misc.VirtualSize;
+	DWORD pCodeBegin = (DWORD)pFileBuffer+pSHToAdd->PointerToRawData + pSHToAdd->Misc.VirtualSize - 20;
 	for(int idx = 0; idx < CODE_SIZE; ++idx)
 	{
 		*((char *)(pCodeBegin + idx)) = shellCode[idx];
@@ -434,7 +433,7 @@ void addShellCode(LPVOID pFileBuffer, int sectionIdx)
 
 
 	//修正messageBox的跳转地址
-	DWORD pFOffSet1 = pSHToAdd->Misc.VirtualSize + FIRST_OFFSET;
+	DWORD pFOffSet1 = pSHToAdd->Misc.VirtualSize - 20 + FIRST_OFFSET;
 	DWORD jumpValue1 = MESSAGE_BOX_ADDRESS - (pSHToAdd->VirtualAddress + pFOffSet1 + pOptionHeader->ImageBase);
 	//printf("virtualAddress:%x, imagebase:%x, offset:%x\n", pSHToAdd->VirtualAddress, pOptionHeader->ImageBase, pFOffSet1);
 	//printf("jumpValue1:%x, curValue: %x\n", jumpValue1, (pSHToAdd->VirtualAddress + pFOffSet1 + pOptionHeader->ImageBase));
@@ -449,13 +448,14 @@ void addShellCode(LPVOID pFileBuffer, int sectionIdx)
 
 
 	//修正入口地址
-	DWORD curEP = pSHToAdd->VirtualAddress + pSHToAdd->Misc.VirtualSize;// + 13;
+	DWORD curEP = pSHToAdd->VirtualAddress + pSHToAdd->Misc.VirtualSize - 20;// + 13;
 	pOptionHeader->AddressOfEntryPoint = curEP;
 
 
 	//修正节表的属性
 	PIMAGE_SECTION_HEADER fPSH = pSectionHeader;
 	pSHToAdd->Characteristics = (pSHToAdd->Characteristics | fPSH->Characteristics);
+
 }
 
 void dataCopy(LPVOID des, LPVOID src, size_t size)
@@ -611,8 +611,8 @@ LPVOID extendLastSection(LPVOID pFileBuffer, size_t size)
 
 	PIMAGE_SECTION_HEADER lastPSH = pSectionHeader + pPEHeader->NumberOfSections - 1;
 	DWORD max = (lastPSH->SizeOfRawData > lastPSH->Misc.VirtualSize)?lastPSH->SizeOfRawData:lastPSH->Misc.VirtualSize;
-	printf("%x, %x, %x\n", max, lastPSH->SizeOfRawData, lastPSH->Misc.VirtualSize);
-	//lastPSH->Misc.VirtualSize = max + size;
+	//printf("%x, %x, %x\n", max, lastPSH->SizeOfRawData, lastPSH->Misc.VirtualSize);
+	//lastPSH->Misc.VirtualSize = max + size;  --错误的
 	lastPSH->SizeOfRawData = getAlignSize(max, pOptionHeader->SectionAlignment)+alignExSize;  //这个属性值得注意
 	lastPSH->Misc.VirtualSize = lastPSH->SizeOfRawData;
 	pOptionHeader->SizeOfImage += alignExSize;
@@ -620,5 +620,109 @@ LPVOID extendLastSection(LPVOID pFileBuffer, size_t size)
 	return reduceToFileBuff(newPImgBuffer);
 }
 
+void addShellCodeTest(const char* inFile, const char* outFile)
+{
+	LPVOID pFileBuffer = readFile(inFile);
+	pFileBuffer = mergeAllSections(pFileBuffer);
 
+	size_t size = 100;
+	LPVOID pImageBuffer = extendToImageBuff(pFileBuffer);
+	PIMAGE_DOS_HEADER pDosHeader = (PIMAGE_DOS_HEADER)pImageBuffer;
+	PIMAGE_NT_HEADERS pNTHeader = (PIMAGE_NT_HEADERS)((DWORD)pImageBuffer + pDosHeader->e_lfanew);;
+	PIMAGE_FILE_HEADER pPEHeader =  &(pNTHeader->FileHeader);
+	PIMAGE_OPTIONAL_HEADER32 pOptionHeader = &(pNTHeader->OptionalHeader);
+	PIMAGE_SECTION_HEADER pSectionHeader = (PIMAGE_SECTION_HEADER)((DWORD)pOptionHeader + pPEHeader->SizeOfOptionalHeader);
+
+	size_t alignExSize = getAlignSize(size, pOptionHeader->SectionAlignment);
+	DWORD orgSize = pOptionHeader->SizeOfImage;
+
+	LPVOID newPImgBuffer = malloc(orgSize + alignExSize);
+	memset(newPImgBuffer, 0, orgSize+alignExSize);
+	dataCopy(newPImgBuffer, pImageBuffer, orgSize);
+
+	free(pImageBuffer);
+
+	pDosHeader = (PIMAGE_DOS_HEADER)newPImgBuffer;
+	pNTHeader = (PIMAGE_NT_HEADERS)((DWORD)newPImgBuffer + pDosHeader->e_lfanew);;
+	pPEHeader =  &(pNTHeader->FileHeader);
+	pOptionHeader = &(pNTHeader->OptionalHeader);
+	pSectionHeader = (PIMAGE_SECTION_HEADER)((DWORD)pOptionHeader + pPEHeader->SizeOfOptionalHeader);
+
+	PIMAGE_SECTION_HEADER lastPSH = pSectionHeader + pPEHeader->NumberOfSections - 1;
+	DWORD max = (lastPSH->SizeOfRawData > lastPSH->Misc.VirtualSize)?lastPSH->SizeOfRawData:lastPSH->Misc.VirtualSize;
+	lastPSH->SizeOfRawData = getAlignSize(max, pOptionHeader->SectionAlignment)+alignExSize;  //这个属性值得注意
+	lastPSH->Misc.VirtualSize = lastPSH->SizeOfRawData;
+	pOptionHeader->SizeOfImage += alignExSize;
+
+	int addSecIdx = pPEHeader->NumberOfSections;
+	newPImgBuffer = reduceToFileBuff(newPImgBuffer);
+
+	addShellCode(newPImgBuffer, addSecIdx);
+	writePEFile(outFile, newPImgBuffer);
+	free(newPImgBuffer);
+}
+
+DWORD getFuncAddrByName(LPVOID pFileBuffer, const char* funcName)
+{
+	PIMAGE_DOS_HEADER pDosHeader = (PIMAGE_DOS_HEADER)pFileBuffer;
+	PIMAGE_NT_HEADERS pNTHeader = (PIMAGE_NT_HEADERS)((DWORD)pFileBuffer + pDosHeader->e_lfanew);;
+	PIMAGE_FILE_HEADER pPEHeader =  &(pNTHeader->FileHeader);
+	PIMAGE_OPTIONAL_HEADER32 pOptionHeader = &(pNTHeader->OptionalHeader);;
+	IMAGE_DATA_DIRECTORY *pImageDataDirectory = pOptionHeader->DataDirectory;
+
+	DWORD exportFOA = convRVAtoFOA(pFileBuffer, (pImageDataDirectory+0)->VirtualAddress);
+	if (!exportFOA)
+	{
+		printf("no export table!\n");
+		return 0;
+	}
+
+	//导出表
+	PIMAGE_EXPORT_DIRECTORY pImageExportDirectory = (PIMAGE_EXPORT_DIRECTORY)((DWORD)pFileBuffer+exportFOA);
+	DWORD funcCnt = pImageExportDirectory->NumberOfFunctions;
+	DWORD nameCnt = pImageExportDirectory->NumberOfNames;
+	DWORD* funcAddr = (DWORD*)((DWORD)pFileBuffer + convRVAtoFOA(pFileBuffer, pImageExportDirectory->AddressOfFunctions));
+	DWORD* funcNamesAddr = (DWORD*)((DWORD)pFileBuffer + convRVAtoFOA(pFileBuffer, pImageExportDirectory->AddressOfNames));
+	WORD* funcNameOrdAddr = (WORD*)((DWORD)pFileBuffer + convRVAtoFOA(pFileBuffer, pImageExportDirectory->AddressOfNameOrdinals));
+	
+	for(int idx = 0; idx < nameCnt; ++idx)
+	{
+		char* pFuncName =  (char*)((DWORD)pFileBuffer+ convRVAtoFOA(pFileBuffer, funcNamesAddr[idx]));
+		if(strcmp(pFuncName, funcName) == 0)
+		{
+			int eIdx = funcNameOrdAddr[idx];
+			return funcAddr[eIdx];
+		}
+	}
+
+	return 0;
+}
+
+DWORD getFuncAddrByOrdinal(LPVOID pFileBuffer, int ordinal)
+{
+	PIMAGE_DOS_HEADER pDosHeader = (PIMAGE_DOS_HEADER)pFileBuffer;
+	PIMAGE_NT_HEADERS pNTHeader = (PIMAGE_NT_HEADERS)((DWORD)pFileBuffer + pDosHeader->e_lfanew);;
+	PIMAGE_FILE_HEADER pPEHeader =  &(pNTHeader->FileHeader);
+	PIMAGE_OPTIONAL_HEADER32 pOptionHeader = &(pNTHeader->OptionalHeader);;
+	IMAGE_DATA_DIRECTORY *pImageDataDirectory = pOptionHeader->DataDirectory;
+
+	DWORD exportFOA = convRVAtoFOA(pFileBuffer, (pImageDataDirectory+0)->VirtualAddress);
+	if (!exportFOA)
+	{
+		printf("no export table!\n");
+		return 0;
+	}
+
+	//导出表
+	PIMAGE_EXPORT_DIRECTORY pImageExportDirectory = (PIMAGE_EXPORT_DIRECTORY)((DWORD)pFileBuffer+exportFOA);
+	DWORD funcCnt = pImageExportDirectory->NumberOfFunctions;
+	DWORD* funcAddr = (DWORD*)((DWORD)pFileBuffer + convRVAtoFOA(pFileBuffer, pImageExportDirectory->AddressOfFunctions));
+	DWORD base = pImageExportDirectory->Base;
+	int eIdx = ordinal - base;
+	if(eIdx < funcCnt)
+	{
+		return funcAddr[eIdx];
+	}
+	return 0;
+}
 
