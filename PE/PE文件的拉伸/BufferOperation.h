@@ -70,6 +70,8 @@ void changeImageBase(LPVOID pFileBuffer, DWORD newBase);
 //移动导出表到新加的节
 LPVOID moveExpDirToNewSec(LPVOID pFileBuffer);
 
+DWORD calSizeForMoveExpDir(LPVOID pFileBuffer);
+
 //移动重定位表到新加的节
 
 #endif

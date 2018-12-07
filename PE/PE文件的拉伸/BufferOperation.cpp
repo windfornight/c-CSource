@@ -805,9 +805,124 @@ void changeImageBase(LPVOID pFileBuffer, DWORD newBase)
 	pOptionHeader->ImageBase = newBase;
 }
 
+DWORD calSizeForMoveExpDir(LPVOID pFileBuffer)
+{
+	DWORD size = 0;
+
+	PIMAGE_DOS_HEADER pDosHeader = (PIMAGE_DOS_HEADER)pFileBuffer;
+	PIMAGE_NT_HEADERS pNTHeader = (PIMAGE_NT_HEADERS)((DWORD)pFileBuffer + pDosHeader->e_lfanew);;
+	PIMAGE_FILE_HEADER pPEHeader =  &(pNTHeader->FileHeader);
+	PIMAGE_OPTIONAL_HEADER32 pOptionHeader = &(pNTHeader->OptionalHeader);;
+	IMAGE_DATA_DIRECTORY *pImageDataDirectory = pOptionHeader->DataDirectory;
+
+
+	DWORD exportFOA = convRVAtoFOA(pFileBuffer, (pImageDataDirectory+0)->VirtualAddress);
+	if (!exportFOA)
+	{
+		printf("no export table!\n");
+		return 0;
+	}
+
+	//导出表
+	PIMAGE_EXPORT_DIRECTORY pImageExportDirectory = (PIMAGE_EXPORT_DIRECTORY)((DWORD)pFileBuffer+exportFOA);
+	DWORD funcCnt = pImageExportDirectory->NumberOfFunctions;
+	DWORD nameCnt = pImageExportDirectory->NumberOfNames;
+	DWORD* funcAddr = (DWORD*)((DWORD)pFileBuffer + convRVAtoFOA(pFileBuffer, pImageExportDirectory->AddressOfFunctions));
+	DWORD* funcNamesAddr = (DWORD*)((DWORD)pFileBuffer + convRVAtoFOA(pFileBuffer, pImageExportDirectory->AddressOfNames));
+	WORD* funcNameOrdAddr = (WORD*)((DWORD)pFileBuffer + convRVAtoFOA(pFileBuffer, pImageExportDirectory->AddressOfNameOrdinals));
+
+	size += sizeof(IMAGE_EXPORT_DIRECTORY);
+	size += 4 * funcCnt;
+	size += (4 + 2) * nameCnt;
+
+	for(int idx = 0; idx < nameCnt; ++idx)
+	{
+		char* pFuncName =  (char*)((DWORD)pFileBuffer+ convRVAtoFOA(pFileBuffer, funcNamesAddr[idx]));
+		size += (strlen(pFuncName) + 1);
+	}
+
+
+
+
+	return  size; 
+}
+
+//节的属性？
 LPVOID moveExpDirToNewSec(LPVOID pFileBuffer)
 {
+	DWORD size = calSizeForMoveExpDir(pFileBuffer);
+	pFileBuffer = addSection(pFileBuffer, size);
 
+	PIMAGE_DOS_HEADER pDosHeader = (PIMAGE_DOS_HEADER)pFileBuffer;
+	PIMAGE_NT_HEADERS pNTHeader = (PIMAGE_NT_HEADERS)((DWORD)pFileBuffer + pDosHeader->e_lfanew);;
+	PIMAGE_FILE_HEADER pPEHeader =  &(pNTHeader->FileHeader);
+	PIMAGE_OPTIONAL_HEADER32 pOptionHeader = &(pNTHeader->OptionalHeader);;
+	IMAGE_DATA_DIRECTORY *pImageDataDirectory = pOptionHeader->DataDirectory;
+	PIMAGE_SECTION_HEADER pImageSectionHeader = (PIMAGE_SECTION_HEADER)((DWORD)pOptionHeader + pPEHeader->SizeOfOptionalHeader);
+
+	PIMAGE_SECTION_HEADER newPSH = pImageSectionHeader + pPEHeader->NumberOfSections - 1;
+	DWORD addrOffset = newPSH->PointerToRawData; //FOA
+
+	DWORD exportFOA = convRVAtoFOA(pFileBuffer, (pImageDataDirectory+0)->VirtualAddress);
+	if (!exportFOA)
+	{
+		return pFileBuffer;
+	}
+
+	//导出表
+	PIMAGE_EXPORT_DIRECTORY pImageExportDirectory = (PIMAGE_EXPORT_DIRECTORY)((DWORD)pFileBuffer+exportFOA);
+
+	//复制导出表,并修改导出表的相关属性
+	dataCopy((LPVOID)((DWORD)pFileBuffer + addrOffset), (LPVOID)pImageExportDirectory, sizeof(IMAGE_EXPORT_DIRECTORY));
+	pImageExportDirectory = (PIMAGE_EXPORT_DIRECTORY)((DWORD)pFileBuffer+addrOffset);
+	(pImageDataDirectory+0)->VirtualAddress = newPSH->VirtualAddress + (addrOffset - newPSH->PointerToRawData);
+	addrOffset += sizeof(IMAGE_EXPORT_DIRECTORY);
+
+
+	DWORD funcCnt = pImageExportDirectory->NumberOfFunctions;
+	DWORD nameCnt = pImageExportDirectory->NumberOfNames;
+
+	DWORD* funcAddr = (DWORD*)((DWORD)pFileBuffer + convRVAtoFOA(pFileBuffer, pImageExportDirectory->AddressOfFunctions));
+	DWORD* funcNamesAddr = (DWORD*)((DWORD)pFileBuffer + convRVAtoFOA(pFileBuffer, pImageExportDirectory->AddressOfNames));
+	WORD* funcNameOrdAddr = (WORD*)((DWORD)pFileBuffer + convRVAtoFOA(pFileBuffer, pImageExportDirectory->AddressOfNameOrdinals));
+
+	//复制函数地址
+	pImageExportDirectory->AddressOfFunctions = newPSH->VirtualAddress + (addrOffset-newPSH->PointerToRawData);
+	DWORD* newFuncAddr = (DWORD*)((DWORD)pFileBuffer + addrOffset);
+	for(int idx = 0; idx < funcCnt; ++idx)
+	{
+		newFuncAddr[idx] = funcAddr[idx];
+		addrOffset += 4;
+	}
+	
+	//复制函数名地址
+	pImageExportDirectory->AddressOfNames = newPSH->VirtualAddress + (addrOffset - newPSH->PointerToRawData);
+	DWORD* newFuncNamesAddr = (DWORD*)((DWORD)pFileBuffer + addrOffset);
+	for(int idx = 0; idx < nameCnt; ++idx)
+	{
+		newFuncNamesAddr[idx] = funcNamesAddr[idx];
+		addrOffset += 4;
+	}
+
+	//复制函数名序号(考虑一下对齐)
+	pImageExportDirectory->AddressOfNameOrdinals = newPSH->VirtualAddress + (addrOffset - newPSH->PointerToRawData);
+	WORD* newFuncNameOrdAddr = (WORD*)((DWORD)pFileBuffer + addrOffset);
+	for(int idx = 0; idx < nameCnt; ++idx)
+	{
+		newFuncNameOrdAddr[idx] = funcNameOrdAddr[idx];
+		addrOffset += 2;
+	}
+	
+	//复制函数名字
+	for(int idx = 0; idx < nameCnt; ++idx)
+	{
+		char* pFuncName =  (char*)((DWORD)pFileBuffer+ convRVAtoFOA(pFileBuffer, newFuncNamesAddr[idx]));
+		char* res = strcpy((char*)pFileBuffer+addrOffset, pFuncName);
+		newFuncNamesAddr[idx] = newPSH->VirtualAddress + (addrOffset - newPSH->PointerToRawData);
+		addrOffset += (strlen(res) + 1);
+	}
+
+	return pFileBuffer;
 }
 
 
