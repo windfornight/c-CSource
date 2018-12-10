@@ -841,9 +841,6 @@ DWORD calSizeForMoveExpDir(LPVOID pFileBuffer)
 		size += (strlen(pFuncName) + 1);
 	}
 
-
-
-
 	return  size; 
 }
 
@@ -921,6 +918,69 @@ LPVOID moveExpDirToNewSec(LPVOID pFileBuffer)
 		newFuncNamesAddr[idx] = newPSH->VirtualAddress + (addrOffset - newPSH->PointerToRawData);
 		addrOffset += (strlen(res) + 1);
 	}
+
+	return pFileBuffer;
+}
+
+DWORD calSizeForMoveRelocDir(LPVOID pFileBuffer)
+{
+	size_t size = 0;
+
+	PIMAGE_DOS_HEADER pDosHeader = (PIMAGE_DOS_HEADER)pFileBuffer;
+	PIMAGE_NT_HEADERS pNTHeader = (PIMAGE_NT_HEADERS)((DWORD)pFileBuffer + pDosHeader->e_lfanew);;
+	PIMAGE_FILE_HEADER pPEHeader =  &(pNTHeader->FileHeader);
+	PIMAGE_OPTIONAL_HEADER32 pOptionHeader = &(pNTHeader->OptionalHeader);;
+	PIMAGE_SECTION_HEADER pSectionHeader = (PIMAGE_SECTION_HEADER)((DWORD)pOptionHeader + pPEHeader->SizeOfOptionalHeader);
+	IMAGE_DATA_DIRECTORY *pImageDataDirectory = pOptionHeader->DataDirectory;
+
+	//重定位表
+	PIMAGE_BASE_RELOCATION pImageBaseRelocation = (PIMAGE_BASE_RELOCATION)((DWORD)pFileBuffer + convRVAtoFOA(pFileBuffer, (pImageDataDirectory+5)->VirtualAddress));
+	while(pImageBaseRelocation->VirtualAddress)
+	{
+		size += pImageBaseRelocation->Size;
+		int cnt = (pImageBaseRelocation->Size - sizeof(IMAGE_BASE_RELOCATION)) / 2;
+		size += (4 * cnt);
+		pImageBaseRelocation = (PIMAGE_BASE_RELOCATION)((DWORD)pImageBaseRelocation + pImageBaseRelocation->Size);
+	}
+	size += sizeof(IMAGE_BASE_RELOCATION);
+
+	return size;
+}
+
+LPVOID moveRelocDieToNewSec(LPVOID pFileBuffer)
+{
+	DWORD size = calSizeForMoveRelocDir(pFileBuffer);
+	pFileBuffer = addSection(pFileBuffer, size);
+
+
+	PIMAGE_DOS_HEADER pDosHeader = (PIMAGE_DOS_HEADER)pFileBuffer;
+	PIMAGE_NT_HEADERS pNTHeader = (PIMAGE_NT_HEADERS)((DWORD)pFileBuffer + pDosHeader->e_lfanew);;
+	PIMAGE_FILE_HEADER pPEHeader =  &(pNTHeader->FileHeader);
+	PIMAGE_OPTIONAL_HEADER32 pOptionHeader = &(pNTHeader->OptionalHeader);;
+	IMAGE_DATA_DIRECTORY *pImageDataDirectory = pOptionHeader->DataDirectory;
+	PIMAGE_SECTION_HEADER pImageSectionHeader = (PIMAGE_SECTION_HEADER)((DWORD)pOptionHeader + pPEHeader->SizeOfOptionalHeader);
+
+	PIMAGE_SECTION_HEADER newPSH = pImageSectionHeader + pPEHeader->NumberOfSections - 1;
+	DWORD addrOffset = newPSH->PointerToRawData; //FOA
+
+
+	//重定位表
+	PIMAGE_BASE_RELOCATION pImageBaseRelocation = (PIMAGE_BASE_RELOCATION)((DWORD)pFileBuffer + convRVAtoFOA(pFileBuffer, (pImageDataDirectory+5)->VirtualAddress));
+	while(pImageBaseRelocation->VirtualAddress)
+	{
+		dataCopy((LPVOID)((DWORD)pFileBuffer+addrOffset), (LPVOID)pImageBaseRelocation, pImageBaseRelocation->Size);
+		addrOffset += pImageBaseRelocation->Size;
+		pImageBaseRelocation = (PIMAGE_BASE_RELOCATION)((DWORD)pImageBaseRelocation + pImageBaseRelocation->Size);
+	}
+
+	//结尾标志
+	dataCopy((LPVOID)((DWORD)pFileBuffer+addrOffset), (LPVOID)pImageBaseRelocation, sizeof(IMAGE_BASE_RELOCATION));
+	addrOffset += sizeof(IMAGE_BASE_RELOCATION);
+
+	//修改导出表目录
+	(pImageDataDirectory+5)->VirtualAddress = newPSH->VirtualAddress;
+
+	//如何拷贝重定位表指向的具体地址？（内存对齐？？？）
 
 	return pFileBuffer;
 }
