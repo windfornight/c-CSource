@@ -135,6 +135,35 @@ typedef struct _IMAGE_BASE_RELOCATION
 	DWORD Size; //重定位块的长度
 }IMAGE_BASE_RELOCATION;
 
+typedef struct _IMAGE_IMPORT_DESCRIPTOR
+{
+	union {
+		DWORD Characreristics;
+		DWORD OriginalFirstThunk;  //RVA,指向IMAGE_THUNK_DATA结构数组
+	}Orig;
+	DWORD TimeDateStamp;
+	DWORD ForwarderChain;
+	DWORD Name;  //RVA，指向dll名字
+	DWORD FirstThunk;  //RVA,指向IMAGE_BHUNK_DATA结构数组
+}IMAGE_IMPORT_DESCRIPTOR;
+
+typedef struct _IMAGE_IMPORT_BY_NAME
+{
+	WORD Hint;  //可能为空，编译器决定，如果不为空，是函数在导出表中的索引
+	BYTE Name[1];  //函数名称
+}IMAGE_IMPORT_BY_NAME, *PIMAGE_IMPORT_BY_NAME;
+
+
+typedef struct _IMAGE_THUNK_DATA32
+{
+	union{
+		BYTE* ForwarderString;
+		PWORD Function;
+		DWORD Ordinal;  //序号
+		PIMAGE_IMPORT_BY_NAME AddressOfData; //指向IMAGE_IMPORT_BY_NAME
+	}ul;
+}IMAGE_THUNK_DATA32;
+
 
 
 typedef IMAGE_DOS_HEADER* PIMAGE_DOS_HEADER;
@@ -144,5 +173,7 @@ typedef IMAGE_OPTIONAL_HEADER32* PIMAGE_OPTIONAL_HEADER32;
 typedef IMAGE_SECTION_HEADER* PIMAGE_SECTION_HEADER;
 typedef IMAGE_EXPORT_DIRECTORY* PIMAGE_EXPORT_DIRECTORY;
 typedef IMAGE_BASE_RELOCATION* PIMAGE_BASE_RELOCATION;
+typedef IMAGE_IMPORT_DESCRIPTOR* PIMAGE_IMPORT_DESCRIPTOR;
+typedef IMAGE_THUNK_DATA32 *PIMAGE_THUNK_DATA32;
 
 #endif

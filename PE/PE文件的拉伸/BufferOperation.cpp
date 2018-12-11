@@ -170,7 +170,7 @@ void printDirectory(LPVOID pFileBuffer)
 	//数据目录表
 	printf("*******************IMAGE-DATA-DIRECTORY************************\n");
 	IMAGE_DATA_DIRECTORY *pImageDataDirectory = pOptionHeader->DataDirectory;
-	char* nameList[16] = {"导出表", "", "", "", "", 
+	char* nameList[16] = {"导出表", "导入表", "", "", "", 
 		"重定位表", "", "", "", "",
 		"", "", "", "", "",
 		""};
@@ -273,6 +273,60 @@ void printRelocationDiretory(LPVOID pFileBuffer)
 		}
 		pImageBaseRelocation = (PIMAGE_BASE_RELOCATION)((DWORD)pImageBaseRelocation + pImageBaseRelocation->Size);
 	}
+}
+
+bool isEndImportDescriptor(PIMAGE_IMPORT_DESCRIPTOR pImageImportDescriptor)
+{
+	for (int i = 0; i < sizeof(IMAGE_IMPORT_DESCRIPTOR); ++i)
+	{
+		if(*((char*)pImageImportDescriptor+i) != 0)
+		{
+			return false;
+		}
+	}
+	return true;
+}
+
+void printImportFuncInfo(LPVOID pFileBuffer, PIMAGE_THUNK_DATA32 pImageThunkData)
+{
+	while(*(PWORD)pImageThunkData != 0)
+	{
+		//最高位是1，按照序号导出
+		if(pImageThunkData->ul.Ordinal & 0x80000000)
+		{
+			//除去最高位就是序号
+			int ordinal = (unsigned)pImageThunkData->ul.Ordinal & (~0x80000000);
+			//printf("import by ordinal:%x\n", ordinal);
+		}else  //是0的话就是按照名字导出
+		{
+			PIMAGE_IMPORT_BY_NAME pImageImportByName = (PIMAGE_IMPORT_BY_NAME)((DWORD)pFileBuffer + convRVAtoFOA(pFileBuffer, (DWORD)pImageThunkData->ul.AddressOfData));
+			printf("import by name, Hint:%x, Name:%s, address:%x\n", pImageImportByName->Hint, pImageImportByName->Name, (DWORD)pImageImportByName->Name); //注意，这里填充的就是一个名字，结构体已经加上了基值
+		}
+		++pImageThunkData;
+	}
+}
+
+void printImportDescriptor(LPVOID pFileBuffer)
+{
+	PIMAGE_DOS_HEADER pDosHeader = (PIMAGE_DOS_HEADER)pFileBuffer;
+	PIMAGE_NT_HEADERS pNTHeader = (PIMAGE_NT_HEADERS)((DWORD)pFileBuffer + pDosHeader->e_lfanew);
+	PIMAGE_FILE_HEADER pPEHeader =  &(pNTHeader->FileHeader);
+	PIMAGE_OPTIONAL_HEADER32 pOptionHeader = &(pNTHeader->OptionalHeader);;
+	PIMAGE_SECTION_HEADER pSectionHeader = (PIMAGE_SECTION_HEADER)((DWORD)pOptionHeader + pPEHeader->SizeOfOptionalHeader);
+	IMAGE_DATA_DIRECTORY *pImageDataDirectory = pOptionHeader->DataDirectory;
+
+	printf("*******************IMPORT-DESCRIPTOR*************************\n");
+	//导入表
+	PIMAGE_IMPORT_DESCRIPTOR pImageDescriptor = (PIMAGE_IMPORT_DESCRIPTOR)((DWORD)pFileBuffer + convRVAtoFOA(pFileBuffer, (pImageDataDirectory+1)->VirtualAddress));
+	while(!isEndImportDescriptor(pImageDescriptor))
+	{
+		char* nameStr = (char *)pFileBuffer + convRVAtoFOA(pFileBuffer, pImageDescriptor->Name);
+		printf("dll name:%s\n", nameStr);
+		printImportFuncInfo(pFileBuffer, (PIMAGE_THUNK_DATA32)((DWORD)pFileBuffer + convRVAtoFOA(pFileBuffer, pImageDescriptor->Orig.OriginalFirstThunk)));
+		//printImportFuncInfo(pFileBuffer, (PIMAGE_THUNK_DATA32)((DWORD)pFileBuffer + convRVAtoFOA(pFileBuffer, pImageDescriptor->FirstThunk)));
+		++pImageDescriptor;
+	}
+
 
 }
 

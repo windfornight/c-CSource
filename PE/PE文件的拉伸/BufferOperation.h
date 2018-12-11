@@ -77,4 +77,12 @@ LPVOID moveRelocDieToNewSec(LPVOID pFileBuffer);
 
 DWORD calSizeForMoveRelocDir(LPVOID pFileBuffer);
 
+//打印导入表
+void printImportDescriptor(LPVOID pFileBuffer);
+
+//是否结束标志
+bool isEndImportDescriptor(PIMAGE_IMPORT_DESCRIPTOR pImageImportDescriptor);
+
+void printImportFuncInfo(LPVOID pFileBuffer, PIMAGE_THUNK_DATA32 pImageThunkData);
+
 #endif
