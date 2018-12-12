@@ -85,4 +85,7 @@ bool isEndImportDescriptor(PIMAGE_IMPORT_DESCRIPTOR pImageImportDescriptor);
 
 void printImportFuncInfo(LPVOID pFileBuffer, PIMAGE_THUNK_DATA32 pImageThunkData);
 
+//打印IAT表(数据如何打印？？)
+void printIATInfo(LPVOID pFileBuffer);
+
 #endif

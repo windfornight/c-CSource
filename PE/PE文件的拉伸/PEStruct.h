@@ -140,7 +140,7 @@ typedef struct _IMAGE_IMPORT_DESCRIPTOR
 	union {
 		DWORD Characreristics;
 		DWORD OriginalFirstThunk;  //RVA,指向IMAGE_THUNK_DATA结构数组
-	}Orig;
+	};
 	DWORD TimeDateStamp;
 	DWORD ForwarderChain;
 	DWORD Name;  //RVA，指向dll名字
