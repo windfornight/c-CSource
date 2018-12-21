@@ -150,7 +150,7 @@ typedef struct _IMAGE_IMPORT_DESCRIPTOR
 typedef struct _IMAGE_IMPORT_BY_NAME
 {
 	WORD Hint;  //可能为空，编译器决定，如果不为空，是函数在导出表中的索引
-	BYTE Name[1];  //函数名称
+	BYTE Name[1];  //函数名称(其实是相当于截取了地址)
 }IMAGE_IMPORT_BY_NAME, *PIMAGE_IMPORT_BY_NAME;
 
 
@@ -163,6 +163,20 @@ typedef struct _IMAGE_THUNK_DATA32
 		PIMAGE_IMPORT_BY_NAME AddressOfData; //指向IMAGE_IMPORT_BY_NAME
 	}ul;
 }IMAGE_THUNK_DATA32;
+
+typedef struct _IMAGE_BOUND_IMPORT_DESCRIPTOR
+{
+	DWORD TimeDateStamp;  //表示绑定的时间戳，如果和PE头中的TimeDateStamp不同则可能被修改过
+	WORD OffsetModuleName;  //dll名称地址， 绑定导入表首地址+该偏移为名字首地址RVA 
+	WORD NumberOfModuleForwarderRefs;  //依赖dll个数
+}IMAGE_BOUND_IMPORT_DESCRIPTOR, *PIMAGE_BOUND_IMPORT_DESCRIPTOR;
+
+typedef struct _IMAGE_BOUND_FORWARDER_REF
+{
+	DWORD TimeDateStamp;
+	WORD OffsetModuleName;
+	WORD Reserved;
+}IMAGE_BOUND_FORWARDER_REF, *PIMAGE_BOUND_FORWARDER_REF;
 
 
 

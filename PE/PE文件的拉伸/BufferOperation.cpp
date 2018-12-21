@@ -67,7 +67,7 @@ bool isValidPEFile(LPVOID pFileBuffer)
 }
 
 //是否一定要到节中去找数据
-DWORD convRVAtoFOA(LPVOID pFileBuffer, DWORD rva)
+DWORD convRVAToOffset(LPVOID pFileBuffer, DWORD rva)
 {
 	PIMAGE_DOS_HEADER pDosHeader = (PIMAGE_DOS_HEADER)pFileBuffer;
 	PIMAGE_NT_HEADERS pNTHeader = (PIMAGE_NT_HEADERS)((DWORD)pFileBuffer + pDosHeader->e_lfanew);;
@@ -76,7 +76,7 @@ DWORD convRVAtoFOA(LPVOID pFileBuffer, DWORD rva)
 	PIMAGE_SECTION_HEADER pSectionHeader = (PIMAGE_SECTION_HEADER)((DWORD)pOptionHeader + pPEHeader->SizeOfOptionalHeader);
 	if (rva >= 0 && rva <= pOptionHeader->SizeOfHeaders)
 	{
-		printf("rva in header:%d\n", rva);
+		//printf("rva in header:%d\n", rva);
 		return rva;
 	}
 	DWORD foa = 0;
@@ -182,7 +182,7 @@ void printDirectory(LPVOID pFileBuffer)
 	IMAGE_DATA_DIRECTORY *pImageDataDirectory = pOptionHeader->DataDirectory;
 	char* nameList[16] = {"导出表", "导入表", "", "", "", 
 		"重定位表", "", "", "", "",
-		"", "", "IAT", "", "",
+		"", "绑定导入表", "IAT", "", "",
 		""};
 	for(int i = 0; i < 16; ++i)
 	{
@@ -202,36 +202,36 @@ void printExportDirectory(LPVOID pFileBuffer)
 	IMAGE_DATA_DIRECTORY *pImageDataDirectory = pOptionHeader->DataDirectory;
 
 	//导出表
-	DWORD foa = convRVAtoFOA(pFileBuffer, (pImageDataDirectory+0)->VirtualAddress);
+	DWORD foa = convRVAToOffset(pFileBuffer, (pImageDataDirectory+0)->VirtualAddress);
 	if(foa)
 	{
 		PIMAGE_EXPORT_DIRECTORY pImageExoprtDirectory = (PIMAGE_EXPORT_DIRECTORY)((DWORD)pFileBuffer+foa);
 		printf("********************EXPORT-DIRECTORY******************\n");
-		printf("name:%s\n", (char*)((DWORD)pFileBuffer + convRVAtoFOA(pFileBuffer, pImageExoprtDirectory->Name)));
+		printf("name:%s\n", (char*)((DWORD)pFileBuffer + convRVAToOffset(pFileBuffer, pImageExoprtDirectory->Name)));
 		printf("base:%x\n", pImageExoprtDirectory->Base);
 		printf("NumberOfFunctions:%x\n", pImageExoprtDirectory->NumberOfFunctions);
 		printf("NumberOfNames:%x\n", pImageExoprtDirectory->NumberOfNames);
-		DWORD* funcAddressArray = (DWORD *)((DWORD)pFileBuffer + convRVAtoFOA(pFileBuffer, pImageExoprtDirectory->AddressOfFunctions));
+		DWORD* funcAddressArray = (DWORD *)((DWORD)pFileBuffer + convRVAToOffset(pFileBuffer, pImageExoprtDirectory->AddressOfFunctions));
 
 		//打印的是FOA
 		printf("*********func address**********\n");
 		for(int i = 0; i < pImageExoprtDirectory->NumberOfFunctions; ++i)
 		{
-			DWORD funcFOA = convRVAtoFOA(pFileBuffer, funcAddressArray[i]);
+			DWORD funcFOA = convRVAToOffset(pFileBuffer, funcAddressArray[i]);
 			printf("idx:%d, FOA:%x, RVA:%x\n", i, funcFOA, funcAddressArray[i]);
 		}
 
 		//打印函数名字
-		DWORD* funcNameAddress = (DWORD*)((DWORD)pFileBuffer + convRVAtoFOA(pFileBuffer, pImageExoprtDirectory->AddressOfNames));
+		DWORD* funcNameAddress = (DWORD*)((DWORD)pFileBuffer + convRVAToOffset(pFileBuffer, pImageExoprtDirectory->AddressOfNames));
 		printf("********func name**************\n");
 		for(int i = 0; i < pImageExoprtDirectory->NumberOfNames; ++i)
 		{
-			DWORD funcFOA = convRVAtoFOA(pFileBuffer, funcNameAddress[i]);
+			DWORD funcFOA = convRVAToOffset(pFileBuffer, funcNameAddress[i]);
 			printf("idx:%d, func name:%s\n", i, (char *)((DWORD)pFileBuffer + funcFOA));
 
 		}
 
-		WORD* funcNameOrdAddress = (WORD*)((DWORD)pFileBuffer + convRVAtoFOA(pFileBuffer, pImageExoprtDirectory->AddressOfNameOrdinals));
+		WORD* funcNameOrdAddress = (WORD*)((DWORD)pFileBuffer + convRVAToOffset(pFileBuffer, pImageExoprtDirectory->AddressOfNameOrdinals));
 		printf("**********func name ord**************\n");
 		for(int i = 0; i < pImageExoprtDirectory->NumberOfNames; ++i)
 		{
@@ -251,7 +251,7 @@ void printRelocationDiretory(LPVOID pFileBuffer)
 
 	printf("*******************RELOCATION-DIRECTORY*************************\n");
 	//重定位表
-	PIMAGE_BASE_RELOCATION pImageBaseRelocation = (PIMAGE_BASE_RELOCATION)((DWORD)pFileBuffer + convRVAtoFOA(pFileBuffer, (pImageDataDirectory+5)->VirtualAddress));
+	PIMAGE_BASE_RELOCATION pImageBaseRelocation = (PIMAGE_BASE_RELOCATION)((DWORD)pFileBuffer + convRVAToOffset(pFileBuffer, (pImageDataDirectory+5)->VirtualAddress));
 	while(pImageBaseRelocation->VirtualAddress)
 	{
 		int size = (pImageBaseRelocation->Size - sizeof(IMAGE_BASE_RELOCATION)) / 2;
@@ -268,7 +268,7 @@ void printRelocationDiretory(LPVOID pFileBuffer)
 			if((value >> 12) == 3)
 			{
 				DWORD addrReloc = pImageBaseRelocation->VirtualAddress + (value & 0xFFF);
-				//printf("addrReoc:%x\n", addrReloc);
+				printf("addrReoc:%x\n", addrReloc);
 			}
 
 			if((idx + 1) % 8 == 0)
@@ -306,11 +306,11 @@ void printImportFuncInfo(LPVOID pFileBuffer, PIMAGE_THUNK_DATA32 pImageThunkData
 		{
 			//除去最高位就是序号
 			int ordinal = (unsigned)pImageThunkData->ul.Ordinal & (~0x80000000);
-			printf("import by ordinal:%x\n", ordinal);
+			//printf("import by ordinal:%x\n", ordinal);
 		}else  //是0的话就是按照名字导出
 		{
-			PIMAGE_IMPORT_BY_NAME pImageImportByName = (PIMAGE_IMPORT_BY_NAME)((DWORD)pFileBuffer + convRVAtoFOA(pFileBuffer, (DWORD)pImageThunkData->ul.AddressOfData));
-			printf("import by name, Hint:%x, Name:%s, address:%x\n", pImageImportByName->Hint, pImageImportByName->Name, (DWORD)pImageImportByName->Name); //注意，这里填充的就是一个名字，结构体已经加上了基值
+			PIMAGE_IMPORT_BY_NAME pImageImportByName = (PIMAGE_IMPORT_BY_NAME)((DWORD)pFileBuffer + convRVAToOffset(pFileBuffer, (DWORD)pImageThunkData->ul.AddressOfData));
+			printf("import by name, Hint:%x, Name:%s, address:%x\n", pImageImportByName->Hint, pImageImportByName->Name, (DWORD)pImageImportByName); //注意，这里填充的就是一个名字，结构体已经加上了基值
 		}
 		++pImageThunkData;
 	}
@@ -328,13 +328,13 @@ void printImportDescriptor(LPVOID pFileBuffer)
 
 	printf("*******************IMPORT-DESCRIPTOR*************************\n");
 	//导入表
-	PIMAGE_IMPORT_DESCRIPTOR pImageDescriptor = (PIMAGE_IMPORT_DESCRIPTOR)((DWORD)pFileBuffer + convRVAtoFOA(pFileBuffer, (pImageDataDirectory+1)->VirtualAddress));
+	PIMAGE_IMPORT_DESCRIPTOR pImageDescriptor = (PIMAGE_IMPORT_DESCRIPTOR)((DWORD)pFileBuffer + convRVAToOffset(pFileBuffer, (pImageDataDirectory+1)->VirtualAddress));
 	while(!isEndImportDescriptor(pImageDescriptor))
 	{
-		char* nameStr = (char *)pFileBuffer + convRVAtoFOA(pFileBuffer, pImageDescriptor->Name);
+		char* nameStr = (char *)pFileBuffer + convRVAToOffset(pFileBuffer, pImageDescriptor->Name);
 		printf("dll name:%s, timeDateStamp:%d\n", nameStr, pImageDescriptor->TimeDateStamp);
-		//printImportFuncInfo(pFileBuffer, (PIMAGE_THUNK_DATA32)((DWORD)pFileBuffer + convRVAtoFOA(pFileBuffer, pImageDescriptor->OriginalFirstThunk)));
-		printImportFuncInfo(pFileBuffer, (PIMAGE_THUNK_DATA32)((DWORD)pFileBuffer + convRVAtoFOA(pFileBuffer, pImageDescriptor->FirstThunk)));
+		//printImportFuncInfo(pFileBuffer, (PIMAGE_THUNK_DATA32)((DWORD)pFileBuffer + convRVAToOffset(pFileBuffer, pImageDescriptor->OriginalFirstThunk)));
+		printImportFuncInfo(pFileBuffer, (PIMAGE_THUNK_DATA32)((DWORD)pFileBuffer + convRVAToOffset(pFileBuffer, pImageDescriptor->FirstThunk)));
 
 		/*{if (pImageDescriptor->FirstThunk == (pImageDataDirectory+12)->VirtualAddress)
 		{
@@ -354,6 +354,33 @@ void printIATInfo(LPVOID pFileBuffer)
 	IMAGE_DATA_DIRECTORY *pImageDataDirectory = pOptionHeader->DataDirectory;
 	printf("IAT address:%x\n", (pImageDataDirectory+12)->VirtualAddress);
 }
+
+void printBoundImportTbl(LPVOID pFileBuffer)
+{
+	PIMAGE_DOS_HEADER pDosHeader = (PIMAGE_DOS_HEADER)pFileBuffer;
+	PIMAGE_NT_HEADERS pNTHeader = (PIMAGE_NT_HEADERS)((DWORD)pFileBuffer + pDosHeader->e_lfanew);
+	PIMAGE_FILE_HEADER pPEHeader =  &(pNTHeader->FileHeader);
+	PIMAGE_OPTIONAL_HEADER32 pOptionHeader = &(pNTHeader->OptionalHeader);;
+	PIMAGE_SECTION_HEADER pSectionHeader = (PIMAGE_SECTION_HEADER)((DWORD)pOptionHeader + pPEHeader->SizeOfOptionalHeader);
+	IMAGE_DATA_DIRECTORY *pImageDataDirectory = pOptionHeader->DataDirectory;
+	
+	PIMAGE_BOUND_IMPORT_DESCRIPTOR pImageBoundImpDesc = (PIMAGE_BOUND_IMPORT_DESCRIPTOR)((DWORD)pFileBuffer + convRVAToOffset(pFileBuffer, (pImageDataDirectory+11)->VirtualAddress));
+	char *pImgBoundHeader = (char *)pImageBoundImpDesc;
+	while(pImageBoundImpDesc->TimeDateStamp)
+	{
+		printf("Bound TimeDateStamp:%d, DLL Name:%s\n", pImageBoundImpDesc->TimeDateStamp, pImgBoundHeader + pImageBoundImpDesc->OffsetModuleName);
+		for(int idx = 1; idx <= pImageBoundImpDesc->NumberOfModuleForwarderRefs; ++idx)
+		{
+			PIMAGE_BOUND_FORWARDER_REF pImageBoundForRef = (PIMAGE_BOUND_FORWARDER_REF)(pImageBoundImpDesc + idx);
+			printf("REF TimeDateStam:%d, DLL Name:%s\n", pImageBoundForRef->TimeDateStamp, pImgBoundHeader+pImageBoundForRef->OffsetModuleName);
+		}
+		printf("\n");
+		pImageBoundImpDesc = pImageBoundImpDesc + pImageBoundImpDesc->NumberOfModuleForwarderRefs + 1;
+	}
+}
+
+
+
 
 LPVOID extendToImageBuff(LPVOID pFileBuffer)
 {
@@ -795,7 +822,7 @@ DWORD getFuncAddrByName(LPVOID pFileBuffer, const char* funcName)
 	PIMAGE_OPTIONAL_HEADER32 pOptionHeader = &(pNTHeader->OptionalHeader);;
 	IMAGE_DATA_DIRECTORY *pImageDataDirectory = pOptionHeader->DataDirectory;
 
-	DWORD exportFOA = convRVAtoFOA(pFileBuffer, (pImageDataDirectory+0)->VirtualAddress);
+	DWORD exportFOA = convRVAToOffset(pFileBuffer, (pImageDataDirectory+0)->VirtualAddress);
 	if (!exportFOA)
 	{
 		printf("no export table!\n");
@@ -806,13 +833,13 @@ DWORD getFuncAddrByName(LPVOID pFileBuffer, const char* funcName)
 	PIMAGE_EXPORT_DIRECTORY pImageExportDirectory = (PIMAGE_EXPORT_DIRECTORY)((DWORD)pFileBuffer+exportFOA);
 	DWORD funcCnt = pImageExportDirectory->NumberOfFunctions;
 	DWORD nameCnt = pImageExportDirectory->NumberOfNames;
-	DWORD* funcAddr = (DWORD*)((DWORD)pFileBuffer + convRVAtoFOA(pFileBuffer, pImageExportDirectory->AddressOfFunctions));
-	DWORD* funcNamesAddr = (DWORD*)((DWORD)pFileBuffer + convRVAtoFOA(pFileBuffer, pImageExportDirectory->AddressOfNames));
-	WORD* funcNameOrdAddr = (WORD*)((DWORD)pFileBuffer + convRVAtoFOA(pFileBuffer, pImageExportDirectory->AddressOfNameOrdinals));
+	DWORD* funcAddr = (DWORD*)((DWORD)pFileBuffer + convRVAToOffset(pFileBuffer, pImageExportDirectory->AddressOfFunctions));
+	DWORD* funcNamesAddr = (DWORD*)((DWORD)pFileBuffer + convRVAToOffset(pFileBuffer, pImageExportDirectory->AddressOfNames));
+	WORD* funcNameOrdAddr = (WORD*)((DWORD)pFileBuffer + convRVAToOffset(pFileBuffer, pImageExportDirectory->AddressOfNameOrdinals));
 	
 	for(int idx = 0; idx < nameCnt; ++idx)
 	{
-		char* pFuncName =  (char*)((DWORD)pFileBuffer+ convRVAtoFOA(pFileBuffer, funcNamesAddr[idx]));
+		char* pFuncName =  (char*)((DWORD)pFileBuffer+ convRVAToOffset(pFileBuffer, funcNamesAddr[idx]));
 		if(strcmp(pFuncName, funcName) == 0)
 		{
 			int eIdx = funcNameOrdAddr[idx];
@@ -831,7 +858,7 @@ DWORD getFuncAddrByOrdinal(LPVOID pFileBuffer, int ordinal)
 	PIMAGE_OPTIONAL_HEADER32 pOptionHeader = &(pNTHeader->OptionalHeader);;
 	IMAGE_DATA_DIRECTORY *pImageDataDirectory = pOptionHeader->DataDirectory;
 
-	DWORD exportFOA = convRVAtoFOA(pFileBuffer, (pImageDataDirectory+0)->VirtualAddress);
+	DWORD exportFOA = convRVAToOffset(pFileBuffer, (pImageDataDirectory+0)->VirtualAddress);
 	if (!exportFOA)
 	{
 		printf("no export table!\n");
@@ -841,7 +868,7 @@ DWORD getFuncAddrByOrdinal(LPVOID pFileBuffer, int ordinal)
 	//导出表
 	PIMAGE_EXPORT_DIRECTORY pImageExportDirectory = (PIMAGE_EXPORT_DIRECTORY)((DWORD)pFileBuffer+exportFOA);
 	DWORD funcCnt = pImageExportDirectory->NumberOfFunctions;
-	DWORD* funcAddr = (DWORD*)((DWORD)pFileBuffer + convRVAtoFOA(pFileBuffer, pImageExportDirectory->AddressOfFunctions));
+	DWORD* funcAddr = (DWORD*)((DWORD)pFileBuffer + convRVAToOffset(pFileBuffer, pImageExportDirectory->AddressOfFunctions));
 	DWORD base = pImageExportDirectory->Base;
 	int eIdx = ordinal - base;
 	if(eIdx < funcCnt)
@@ -863,7 +890,7 @@ void changeImageBase(LPVOID pFileBuffer, DWORD newBase)
 	DWORD delta = newBase - pOptionHeader->ImageBase;
 
 	//重定位表
-	PIMAGE_BASE_RELOCATION pImageBaseRelocation = (PIMAGE_BASE_RELOCATION)((DWORD)pFileBuffer + convRVAtoFOA(pFileBuffer, (pImageDataDirectory+5)->VirtualAddress));
+	PIMAGE_BASE_RELOCATION pImageBaseRelocation = (PIMAGE_BASE_RELOCATION)((DWORD)pFileBuffer + convRVAToOffset(pFileBuffer, (pImageDataDirectory+5)->VirtualAddress));
 	while(pImageBaseRelocation->VirtualAddress)
 	{
 		int size = (pImageBaseRelocation->Size - sizeof(IMAGE_BASE_RELOCATION)) / 2;
@@ -875,7 +902,7 @@ void changeImageBase(LPVOID pFileBuffer, DWORD newBase)
 			if((value >> 12) == 3)
 			{
 				DWORD addrReloc = pImageBaseRelocation->VirtualAddress + (value & 0xFFF);
-				DWORD* modifyAddr = (DWORD*)((DWORD)pFileBuffer + convRVAtoFOA(pFileBuffer, addrReloc));
+				DWORD* modifyAddr = (DWORD*)((DWORD)pFileBuffer + convRVAToOffset(pFileBuffer, addrReloc));
 				*modifyAddr += delta;
 			}
 		}
@@ -896,7 +923,7 @@ DWORD calSizeForMoveExpDir(LPVOID pFileBuffer)
 	IMAGE_DATA_DIRECTORY *pImageDataDirectory = pOptionHeader->DataDirectory;
 
 
-	DWORD exportFOA = convRVAtoFOA(pFileBuffer, (pImageDataDirectory+0)->VirtualAddress);
+	DWORD exportFOA = convRVAToOffset(pFileBuffer, (pImageDataDirectory+0)->VirtualAddress);
 	if (!exportFOA)
 	{
 		printf("no export table!\n");
@@ -907,9 +934,9 @@ DWORD calSizeForMoveExpDir(LPVOID pFileBuffer)
 	PIMAGE_EXPORT_DIRECTORY pImageExportDirectory = (PIMAGE_EXPORT_DIRECTORY)((DWORD)pFileBuffer+exportFOA);
 	DWORD funcCnt = pImageExportDirectory->NumberOfFunctions;
 	DWORD nameCnt = pImageExportDirectory->NumberOfNames;
-	DWORD* funcAddr = (DWORD*)((DWORD)pFileBuffer + convRVAtoFOA(pFileBuffer, pImageExportDirectory->AddressOfFunctions));
-	DWORD* funcNamesAddr = (DWORD*)((DWORD)pFileBuffer + convRVAtoFOA(pFileBuffer, pImageExportDirectory->AddressOfNames));
-	WORD* funcNameOrdAddr = (WORD*)((DWORD)pFileBuffer + convRVAtoFOA(pFileBuffer, pImageExportDirectory->AddressOfNameOrdinals));
+	DWORD* funcAddr = (DWORD*)((DWORD)pFileBuffer + convRVAToOffset(pFileBuffer, pImageExportDirectory->AddressOfFunctions));
+	DWORD* funcNamesAddr = (DWORD*)((DWORD)pFileBuffer + convRVAToOffset(pFileBuffer, pImageExportDirectory->AddressOfNames));
+	WORD* funcNameOrdAddr = (WORD*)((DWORD)pFileBuffer + convRVAToOffset(pFileBuffer, pImageExportDirectory->AddressOfNameOrdinals));
 
 	size += sizeof(IMAGE_EXPORT_DIRECTORY);
 	size += 4 * funcCnt;
@@ -917,7 +944,7 @@ DWORD calSizeForMoveExpDir(LPVOID pFileBuffer)
 
 	for(int idx = 0; idx < nameCnt; ++idx)
 	{
-		char* pFuncName =  (char*)((DWORD)pFileBuffer+ convRVAtoFOA(pFileBuffer, funcNamesAddr[idx]));
+		char* pFuncName =  (char*)((DWORD)pFileBuffer+ convRVAToOffset(pFileBuffer, funcNamesAddr[idx]));
 		size += (strlen(pFuncName) + 1);
 	}
 
@@ -940,7 +967,7 @@ LPVOID moveExpDirToNewSec(LPVOID pFileBuffer)
 	PIMAGE_SECTION_HEADER newPSH = pImageSectionHeader + pPEHeader->NumberOfSections - 1;
 	DWORD addrOffset = newPSH->PointerToRawData; //FOA
 
-	DWORD exportFOA = convRVAtoFOA(pFileBuffer, (pImageDataDirectory+0)->VirtualAddress);
+	DWORD exportFOA = convRVAToOffset(pFileBuffer, (pImageDataDirectory+0)->VirtualAddress);
 	if (!exportFOA)
 	{
 		return pFileBuffer;
@@ -959,9 +986,9 @@ LPVOID moveExpDirToNewSec(LPVOID pFileBuffer)
 	DWORD funcCnt = pImageExportDirectory->NumberOfFunctions;
 	DWORD nameCnt = pImageExportDirectory->NumberOfNames;
 
-	DWORD* funcAddr = (DWORD*)((DWORD)pFileBuffer + convRVAtoFOA(pFileBuffer, pImageExportDirectory->AddressOfFunctions));
-	DWORD* funcNamesAddr = (DWORD*)((DWORD)pFileBuffer + convRVAtoFOA(pFileBuffer, pImageExportDirectory->AddressOfNames));
-	WORD* funcNameOrdAddr = (WORD*)((DWORD)pFileBuffer + convRVAtoFOA(pFileBuffer, pImageExportDirectory->AddressOfNameOrdinals));
+	DWORD* funcAddr = (DWORD*)((DWORD)pFileBuffer + convRVAToOffset(pFileBuffer, pImageExportDirectory->AddressOfFunctions));
+	DWORD* funcNamesAddr = (DWORD*)((DWORD)pFileBuffer + convRVAToOffset(pFileBuffer, pImageExportDirectory->AddressOfNames));
+	WORD* funcNameOrdAddr = (WORD*)((DWORD)pFileBuffer + convRVAToOffset(pFileBuffer, pImageExportDirectory->AddressOfNameOrdinals));
 
 	//复制函数地址
 	pImageExportDirectory->AddressOfFunctions = newPSH->VirtualAddress + (addrOffset-newPSH->PointerToRawData);
@@ -993,7 +1020,7 @@ LPVOID moveExpDirToNewSec(LPVOID pFileBuffer)
 	//复制函数名字
 	for(int idx = 0; idx < nameCnt; ++idx)
 	{
-		char* pFuncName =  (char*)((DWORD)pFileBuffer+ convRVAtoFOA(pFileBuffer, newFuncNamesAddr[idx]));
+		char* pFuncName =  (char*)((DWORD)pFileBuffer+ convRVAToOffset(pFileBuffer, newFuncNamesAddr[idx]));
 		char* res = strcpy((char*)pFileBuffer+addrOffset, pFuncName);
 		newFuncNamesAddr[idx] = newPSH->VirtualAddress + (addrOffset - newPSH->PointerToRawData);
 		addrOffset += (strlen(res) + 1);
@@ -1015,7 +1042,7 @@ DWORD calSizeForMoveRelocDir(LPVOID pFileBuffer)
 	IMAGE_DATA_DIRECTORY *pImageDataDirectory = pOptionHeader->DataDirectory;
 
 	//重定位表
-	PIMAGE_BASE_RELOCATION pImageBaseRelocation = (PIMAGE_BASE_RELOCATION)((DWORD)pFileBuffer + convRVAtoFOA(pFileBuffer, (pImageDataDirectory+5)->VirtualAddress));
+	PIMAGE_BASE_RELOCATION pImageBaseRelocation = (PIMAGE_BASE_RELOCATION)((DWORD)pFileBuffer + convRVAToOffset(pFileBuffer, (pImageDataDirectory+5)->VirtualAddress));
 	while(pImageBaseRelocation->VirtualAddress)
 	{
 		size += pImageBaseRelocation->Size;
@@ -1028,7 +1055,7 @@ DWORD calSizeForMoveRelocDir(LPVOID pFileBuffer)
 	return size;
 }
 
-LPVOID moveRelocDieToNewSec(LPVOID pFileBuffer)
+LPVOID moveRelocDirToNewSec(LPVOID pFileBuffer)
 {
 	DWORD size = calSizeForMoveRelocDir(pFileBuffer);
 	pFileBuffer = addSection(pFileBuffer, size);
@@ -1044,7 +1071,7 @@ LPVOID moveRelocDieToNewSec(LPVOID pFileBuffer)
 	DWORD addrOffset = newPSH->PointerToRawData; //FOA
 
 	//重定位表
-	PIMAGE_BASE_RELOCATION pImageBaseRelocation = (PIMAGE_BASE_RELOCATION)((DWORD)pFileBuffer + convRVAtoFOA(pFileBuffer, (pImageDataDirectory+5)->VirtualAddress));
+	PIMAGE_BASE_RELOCATION pImageBaseRelocation = (PIMAGE_BASE_RELOCATION)((DWORD)pFileBuffer + convRVAToOffset(pFileBuffer, (pImageDataDirectory+5)->VirtualAddress));
 	while(pImageBaseRelocation->VirtualAddress)
 	{
 		dataCopy((LPVOID)((DWORD)pFileBuffer+addrOffset), (LPVOID)pImageBaseRelocation, pImageBaseRelocation->Size);
@@ -1060,6 +1087,144 @@ LPVOID moveRelocDieToNewSec(LPVOID pFileBuffer)
 	(pImageDataDirectory+5)->VirtualAddress = newPSH->VirtualAddress;
 
 	//如何拷贝重定位表指向的具体地址？（内存对齐？？？）
+
+	return pFileBuffer;
+}
+
+DWORD calSizeForMoveImportDir(LPVOID pFileBuffer)
+{
+	size_t size = 0;
+
+	PIMAGE_DOS_HEADER pDosHeader = (PIMAGE_DOS_HEADER)pFileBuffer;
+	PIMAGE_NT_HEADERS pNTHeader = (PIMAGE_NT_HEADERS)((DWORD)pFileBuffer + pDosHeader->e_lfanew);;
+	PIMAGE_FILE_HEADER pPEHeader =  &(pNTHeader->FileHeader);
+	PIMAGE_OPTIONAL_HEADER32 pOptionHeader = &(pNTHeader->OptionalHeader);;
+	PIMAGE_SECTION_HEADER pSectionHeader = (PIMAGE_SECTION_HEADER)((DWORD)pOptionHeader + pPEHeader->SizeOfOptionalHeader);
+	IMAGE_DATA_DIRECTORY *pImageDataDirectory = pOptionHeader->DataDirectory;
+
+	PIMAGE_IMPORT_DESCRIPTOR pImageDescriptor = (PIMAGE_IMPORT_DESCRIPTOR)((DWORD)pFileBuffer + convRVAToOffset(pFileBuffer, (pImageDataDirectory+1)->VirtualAddress));
+	int index = 0;
+	while(!isEndImportDescriptor(pImageDescriptor))
+	{
+		size += sizeof(IMAGE_IMPORT_DESCRIPTOR);
+
+		//INT表的计算
+		PIMAGE_THUNK_DATA32 pImageThunkData = (PIMAGE_THUNK_DATA32)((DWORD)pFileBuffer + convRVAToOffset(pFileBuffer, pImageDescriptor->OriginalFirstThunk)); 
+		while(*(DWORD*)pImageThunkData != 0)
+		{
+			size += sizeof(IMAGE_THUNK_DATA32);
+			if(!(pImageThunkData->ul.Ordinal & 0x80000000)) //按照名字导出
+			{
+				PIMAGE_IMPORT_BY_NAME pImageImportByName = (PIMAGE_IMPORT_BY_NAME)((DWORD)pFileBuffer + convRVAToOffset(pFileBuffer, (DWORD)pImageThunkData->ul.AddressOfData));
+				size += sizeof(IMAGE_IMPORT_BY_NAME);
+				size += strlen(pImageImportByName->Name);  //名字的长度，注意，这里由于结构的长度对齐占了两个，所以就不加上结束标志的占位空间了
+			}
+			++pImageThunkData;
+		}
+		size += sizeof(IMAGE_THUNK_DATA32);
+
+		++pImageDescriptor;
+		index ++;
+	}
+
+	//结尾部分
+	size += sizeof(IMAGE_IMPORT_DESCRIPTOR);
+
+	return size;
+}
+
+LPVOID expendImportDirToNewSec(LPVOID pFileBuffer, LPVOID inFileBuffer)
+{
+	DWORD size = calSizeForMoveImportDir(pFileBuffer);
+
+	//新增的导入表结构大小
+	size += sizeof(IMAGE_IMPORT_DESCRIPTOR);
+
+	//新增的导入表大小
+
+	pFileBuffer = addSection(pFileBuffer, size);
+	PIMAGE_DOS_HEADER pDosHeader = (PIMAGE_DOS_HEADER)pFileBuffer;
+	PIMAGE_NT_HEADERS pNTHeader = (PIMAGE_NT_HEADERS)((DWORD)pFileBuffer + pDosHeader->e_lfanew);;
+	PIMAGE_FILE_HEADER pPEHeader =  &(pNTHeader->FileHeader);
+	PIMAGE_OPTIONAL_HEADER32 pOptionHeader = &(pNTHeader->OptionalHeader);;
+	IMAGE_DATA_DIRECTORY *pImageDataDirectory = pOptionHeader->DataDirectory;
+	PIMAGE_SECTION_HEADER pImageSectionHeader = (PIMAGE_SECTION_HEADER)((DWORD)pOptionHeader + pPEHeader->SizeOfOptionalHeader);
+
+	PIMAGE_SECTION_HEADER newPSH = pImageSectionHeader + pPEHeader->NumberOfSections - 1;
+	DWORD addrOffset = newPSH->PointerToRawData; //FOA
+
+	//原来的导入表
+	PIMAGE_IMPORT_DESCRIPTOR pImageDescriptor = (PIMAGE_IMPORT_DESCRIPTOR)((DWORD)pFileBuffer + convRVAToOffset(pFileBuffer, (pImageDataDirectory+1)->VirtualAddress));
+
+	//移动后的导入表
+	PIMAGE_IMPORT_DESCRIPTOR pNewImageDescriptor = (PIMAGE_IMPORT_DESCRIPTOR)((DWORD)pFileBuffer + newPSH->PointerToRawData);
+
+	int index = 0;
+	//拷贝导入表
+	while(!isEndImportDescriptor(pImageDescriptor))
+	{
+		//拷贝数据
+		memcpy((char*)pFileBuffer + addrOffset, pImageDescriptor, sizeof(IMAGE_IMPORT_DESCRIPTOR));
+		addrOffset += sizeof(IMAGE_IMPORT_DESCRIPTOR);	
+		++pImageDescriptor;
+		index++;
+	}
+
+	memset((char*)pFileBuffer + addrOffset, 0, 2*sizeof(IMAGE_IMPORT_DESCRIPTOR));
+	addrOffset += 2*sizeof(IMAGE_IMPORT_DESCRIPTOR);
+	
+	//修改目录属性
+	(pImageDataDirectory+1)->VirtualAddress = newPSH->VirtualAddress;
+	//(pImageDataDirectory+1)->isize = addrOffset;
+
+	while(!isEndImportDescriptor(pNewImageDescriptor))
+	{
+		//拷贝INT表
+		PIMAGE_THUNK_DATA32 pImageThunkData = (PIMAGE_THUNK_DATA32)((DWORD)pFileBuffer + convRVAToOffset(pFileBuffer, pNewImageDescriptor->OriginalFirstThunk)); 
+
+		//修改属性
+		pNewImageDescriptor->OriginalFirstThunk = (addrOffset - newPSH->PointerToRawData) + newPSH->VirtualAddress;  //本节区的文件偏移加本节区的RVA
+
+		while(*(DWORD*)pImageThunkData != 0)
+		{
+			memcpy((char*)pFileBuffer+addrOffset, pImageThunkData, sizeof(IMAGE_THUNK_DATA32));
+			addrOffset += sizeof(IMAGE_THUNK_DATA32);
+			++pImageThunkData;
+		}
+
+		//结尾标志
+		memset((char*)pFileBuffer+addrOffset, 0, sizeof(IMAGE_THUNK_DATA32));
+		addrOffset += sizeof(IMAGE_THUNK_DATA32);
+
+		//拷贝INT表指向的名字导入部分数据
+		pImageThunkData = (PIMAGE_THUNK_DATA32)((DWORD)pFileBuffer + convRVAToOffset(pFileBuffer, pNewImageDescriptor->OriginalFirstThunk)); 
+		while(*(DWORD*)pImageThunkData != 0)
+		{
+			
+			if(!(pImageThunkData->ul.Ordinal & 0x80000000)) //按照名字导出
+			{
+				PIMAGE_IMPORT_BY_NAME pImageImportByName = (PIMAGE_IMPORT_BY_NAME)((DWORD)pFileBuffer + convRVAToOffset(pFileBuffer, (DWORD)pImageThunkData->ul.AddressOfData));
+				//修改属性
+				pImageThunkData->ul.AddressOfData = (PIMAGE_IMPORT_BY_NAME)(addrOffset - newPSH->PointerToRawData + newPSH->VirtualAddress);  //本节区的文件偏移加本节区的RVA
+				//拷贝结构
+				memcpy((char*)pFileBuffer+addrOffset, pImageImportByName, sizeof(IMAGE_IMPORT_BY_NAME));
+				//拷贝名字
+				PIMAGE_IMPORT_BY_NAME pNewImageImportByName = (PIMAGE_IMPORT_BY_NAME)((DWORD)pFileBuffer + convRVAToOffset(pFileBuffer, (DWORD)pImageThunkData->ul.AddressOfData));   /////
+				strcpy(pNewImageImportByName->Name, pImageImportByName->Name);
+				
+				addrOffset += sizeof(IMAGE_IMPORT_BY_NAME);
+				addrOffset += strlen(pImageImportByName->Name);  //名字的长度，注意，这里由于结构的长度对齐占了两个，所以就不加上结束标志的占位空间了
+			}
+			++pImageThunkData;
+		}
+
+		//注意，这里不能拷贝IAT表（想想重定位表，间接call的时候）
+		++pNewImageDescriptor;
+	}
+
+
+	//根据dll的导出表来填充导入表
+
 
 	return pFileBuffer;
 }

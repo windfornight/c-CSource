@@ -24,7 +24,7 @@ void writePEFile(const char* outFile, LPVOID fileBuff);
 void addShellCode(LPVOID fileBuff, int sectionIdx);
 
 //RVA->FOA
-DWORD convRVAtoFOA(LPVOID fileBuff, DWORD rva);
+DWORD convRVAToOffset(LPVOID fileBuff, DWORD rva);
 
 //打印目录
 void printDirectory(LPVOID fileBuff);
@@ -73,7 +73,7 @@ LPVOID moveExpDirToNewSec(LPVOID pFileBuffer);
 DWORD calSizeForMoveExpDir(LPVOID pFileBuffer);
 
 //移动重定位表到新加的节
-LPVOID moveRelocDieToNewSec(LPVOID pFileBuffer);
+LPVOID moveRelocDirToNewSec(LPVOID pFileBuffer);
 
 DWORD calSizeForMoveRelocDir(LPVOID pFileBuffer);
 
@@ -87,5 +87,13 @@ void printImportFuncInfo(LPVOID pFileBuffer, PIMAGE_THUNK_DATA32 pImageThunkData
 
 //打印IAT表(数据如何打印？？)
 void printIATInfo(LPVOID pFileBuffer);
+
+//打印绑定导入表  https://blog.csdn.net/apollon_krj/article/details/77417063
+void printBoundImportTbl(LPVOID pFileBuffer);
+
+//移动导入表到新加的节，并且新增一个导入表
+LPVOID expendImportDirToNewSec(LPVOID pFileBuffer, LPVOID inFileBuffer);
+
+DWORD calSizeForMoveImportDir(LPVOID pFileBuffer);
 
 #endif
