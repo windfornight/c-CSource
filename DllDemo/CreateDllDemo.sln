@@ -1,0 +1,32 @@
+﻿
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio 2012
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "CreateDllDemo", "CreateDllDemo\CreateDllDemo.vcxproj", "{626BA16E-ABB3-4C63-B538-B9540F924AE0}"
+EndProject
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "LoadLibrary", "LoadLibrary\LoadLibrary.vcxproj", "{B1281C4E-A206-4C25-949D-1E070B6E112A}"
+EndProject
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "CreateDllDemo2", "CreateDllDemo2\CreateDllDemo2.vcxproj", "{A90B5D92-E131-4EC2-8CF9-BF9DD8D2A62C}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Win32 = Debug|Win32
+		Release|Win32 = Release|Win32
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{626BA16E-ABB3-4C63-B538-B9540F924AE0}.Debug|Win32.ActiveCfg = Debug|Win32
+		{626BA16E-ABB3-4C63-B538-B9540F924AE0}.Debug|Win32.Build.0 = Debug|Win32
+		{626BA16E-ABB3-4C63-B538-B9540F924AE0}.Release|Win32.ActiveCfg = Release|Win32
+		{626BA16E-ABB3-4C63-B538-B9540F924AE0}.Release|Win32.Build.0 = Release|Win32
+		{B1281C4E-A206-4C25-949D-1E070B6E112A}.Debug|Win32.ActiveCfg = Debug|Win32
+		{B1281C4E-A206-4C25-949D-1E070B6E112A}.Debug|Win32.Build.0 = Debug|Win32
+		{B1281C4E-A206-4C25-949D-1E070B6E112A}.Release|Win32.ActiveCfg = Release|Win32
+		{B1281C4E-A206-4C25-949D-1E070B6E112A}.Release|Win32.Build.0 = Release|Win32
+		{A90B5D92-E131-4EC2-8CF9-BF9DD8D2A62C}.Debug|Win32.ActiveCfg = Debug|Win32
+		{A90B5D92-E131-4EC2-8CF9-BF9DD8D2A62C}.Debug|Win32.Build.0 = Debug|Win32
+		{A90B5D92-E131-4EC2-8CF9-BF9DD8D2A62C}.Release|Win32.ActiveCfg = Release|Win32
+		{A90B5D92-E131-4EC2-8CF9-BF9DD8D2A62C}.Release|Win32.Build.0 = Release|Win32
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+EndGlobal
