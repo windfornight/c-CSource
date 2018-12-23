@@ -180,7 +180,7 @@ void printDirectory(LPVOID pFileBuffer)
 	//数据目录表
 	printf("*******************IMAGE-DATA-DIRECTORY************************\n");
 	IMAGE_DATA_DIRECTORY *pImageDataDirectory = pOptionHeader->DataDirectory;
-	char* nameList[16] = {"导出表", "导入表", "", "", "", 
+	const char* nameList[16] = {"导出表", "导入表", "", "", "", 
 		"重定位表", "", "", "", "",
 		"", "绑定导入表", "IAT", "", "",
 		""};
@@ -1133,7 +1133,7 @@ DWORD calSizeForMoveImportDir(LPVOID pFileBuffer)
 	return size;
 }
 
-LPVOID expendImportDirToNewSec(LPVOID pFileBuffer, LPVOID inFileBuffer)
+LPVOID expendImportDirToNewSec(LPVOID pFileBuffer, LPVOID inFileBuffer, const char* dllName)
 {
 	DWORD size = calSizeForMoveImportDir(pFileBuffer);
 
@@ -1141,6 +1141,7 @@ LPVOID expendImportDirToNewSec(LPVOID pFileBuffer, LPVOID inFileBuffer)
 	size += sizeof(IMAGE_IMPORT_DESCRIPTOR);
 
 	//新增的导入表大小
+	size += calSizeForAddImportTbl(inFileBuffer, dllName);
 
 	pFileBuffer = addSection(pFileBuffer, size);
 	PIMAGE_DOS_HEADER pDosHeader = (PIMAGE_DOS_HEADER)pFileBuffer;
@@ -1224,11 +1225,96 @@ LPVOID expendImportDirToNewSec(LPVOID pFileBuffer, LPVOID inFileBuffer)
 
 
 	//根据dll的导出表来填充导入表
+	PIMAGE_DOS_HEADER pDosHeader2 = (PIMAGE_DOS_HEADER)inFileBuffer;
+	PIMAGE_NT_HEADERS pNTHeader2 = (PIMAGE_NT_HEADERS)((DWORD)inFileBuffer + pDosHeader2->e_lfanew);;
+	PIMAGE_FILE_HEADER pPEHeader2 = &(pNTHeader2->FileHeader);
+	PIMAGE_OPTIONAL_HEADER32 pOptionHeader2 = &(pNTHeader2->OptionalHeader);;
+	IMAGE_DATA_DIRECTORY *pImageDataDirectory2 = pOptionHeader2->DataDirectory;
+
+
+	DWORD exportFOA2 = convRVAToOffset(inFileBuffer, (pImageDataDirectory2 + 0)->VirtualAddress);
+	if (!exportFOA2)
+	{
+		printf("no export table!\n");
+		return pFileBuffer;
+	}
+
+	//导出表
+	PIMAGE_EXPORT_DIRECTORY pImageExportDirectory = (PIMAGE_EXPORT_DIRECTORY)((DWORD)inFileBuffer + exportFOA2);
+
+	DWORD funcCnt = pImageExportDirectory->NumberOfFunctions;
+	DWORD nameCnt = pImageExportDirectory->NumberOfNames;
+	DWORD* funcAddr = (DWORD*)((DWORD)inFileBuffer + convRVAToOffset(inFileBuffer, pImageExportDirectory->AddressOfFunctions));
+	DWORD* funcNamesAddr = (DWORD*)((DWORD)inFileBuffer + convRVAToOffset(inFileBuffer, pImageExportDirectory->AddressOfNames));
+	WORD* funcNameOrdAddr = (WORD*)((DWORD)inFileBuffer + convRVAToOffset(inFileBuffer, pImageExportDirectory->AddressOfNameOrdinals));
+	DWORD base = pImageExportDirectory->Base;
+
+
+	//拷贝名字
+	strcpy((char*)pFileBuffer + addrOffset, dllName);
+	
+
+	//新填充的部分
+	pNewImageDescriptor->Name = addrOffset - newPSH->PointerToRawData + newPSH->VirtualAddress;
+	addrOffset += (strlen(dllName) + 1);
+
+	//先直接考虑序号导出函数（名字的注入有排序性质）
+	for (int index = base; index < base + funcCnt; ++index)
+	{
+
+	}
+
+
+
+
+
+
+
 
 
 	return pFileBuffer;
 }
 
+
+DWORD calSizeForAddImportTbl(LPVOID pFileBuffer, const char* dllName)
+{
+	int size = strlen(dllName) + 1;
+
+	PIMAGE_DOS_HEADER pDosHeader = (PIMAGE_DOS_HEADER)pFileBuffer;
+	PIMAGE_NT_HEADERS pNTHeader = (PIMAGE_NT_HEADERS)((DWORD)pFileBuffer + pDosHeader->e_lfanew);;
+	PIMAGE_FILE_HEADER pPEHeader = &(pNTHeader->FileHeader);
+	PIMAGE_OPTIONAL_HEADER32 pOptionHeader = &(pNTHeader->OptionalHeader);;
+	IMAGE_DATA_DIRECTORY *pImageDataDirectory = pOptionHeader->DataDirectory;
+
+
+	DWORD exportFOA = convRVAToOffset(pFileBuffer, (pImageDataDirectory + 0)->VirtualAddress);
+	if (!exportFOA)
+	{
+		printf("no export table!\n");
+		return 0;
+	}
+
+	//导出表
+	PIMAGE_EXPORT_DIRECTORY pImageExportDirectory = (PIMAGE_EXPORT_DIRECTORY)((DWORD)pFileBuffer + exportFOA);
+	DWORD funcCnt = pImageExportDirectory->NumberOfFunctions;
+	DWORD nameCnt = pImageExportDirectory->NumberOfNames;
+	DWORD* funcAddr = (DWORD*)((DWORD)pFileBuffer + convRVAToOffset(pFileBuffer, pImageExportDirectory->AddressOfFunctions));
+	DWORD* funcNamesAddr = (DWORD*)((DWORD)pFileBuffer + convRVAToOffset(pFileBuffer, pImageExportDirectory->AddressOfNames));
+	WORD* funcNameOrdAddr = (WORD*)((DWORD)pFileBuffer + convRVAToOffset(pFileBuffer, pImageExportDirectory->AddressOfNameOrdinals));
+
+	size += sizeof(IMAGE_EXPORT_DIRECTORY);
+	size += 4 * funcCnt;
+	size += (4 + 2) * nameCnt;
+
+	for (int idx = 0; idx < nameCnt; ++idx)
+	{
+		char* pFuncName = (char*)((DWORD)pFileBuffer + convRVAToOffset(pFileBuffer, funcNamesAddr[idx]));
+		size += (strlen(pFuncName) + 1);
+	}
+
+
+	return size;
+}
 
 
 

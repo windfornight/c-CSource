@@ -92,8 +92,10 @@ void printIATInfo(LPVOID pFileBuffer);
 void printBoundImportTbl(LPVOID pFileBuffer);
 
 //移动导入表到新加的节，并且新增一个导入表
-LPVOID expendImportDirToNewSec(LPVOID pFileBuffer, LPVOID inFileBuffer);
+LPVOID expendImportDirToNewSec(LPVOID pFileBuffer, LPVOID inFileBuffer, const char* dllName);
 
 DWORD calSizeForMoveImportDir(LPVOID pFileBuffer);
+
+DWORD calSizeForAddImportTbl(LPVOID pFileBuffer, const char* dllName);
 
 #endif
