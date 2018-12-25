@@ -184,7 +184,7 @@ int LinkedList<T_ELE>::insert(int index, T_ELE element)
 	
 	typename LinkedList<T_ELE>::PNODE tmp = new NODE;
 	tmp->pNext = NULL;
-	memcpy(&tmp->Data; &element, sizeof(T_ELE));
+	memcpy(&tmp->Data, &element, sizeof(T_ELE));
 	
 	//3.如果索引为0
 	if (index == 0)
@@ -200,7 +200,7 @@ int LinkedList<T_ELE>::insert(int index, T_ELE element)
 	else //5.如果索引为链表中
 	{
 		typename LinkedList<T_ELE>::PNODE preNode = getIndexPreviousNode(index);
-		typename LinkedList<T_ELE>::PNODE nextNode = getIndexCurrentNdoe(index);
+		typename LinkedList<T_ELE>::PNODE nextNode = getIndexCurrentNode(index);
 		preNode->pNext = tmp;
 		tmp->pNext = nextNode;
 	}
