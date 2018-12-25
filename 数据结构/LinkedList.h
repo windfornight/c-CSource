@@ -72,7 +72,7 @@ void LinkedList<T_ELE>::clear()
 	//2.循环删除链表中的节点
 	while (mPtrList)
 	{
-		LinkedList<T_ELE>::PNODE tmp = mPtrList;
+		typename LinkedList<T_ELE>::PNODE tmp = mPtrList;
 		mPtrList = mPtrList->pNext;
 		delete tmp;
 	}
@@ -95,7 +95,7 @@ int LinkedList<T_ELE>::getElement(int index, T_ELE& element)
 	}
 
 	//2.去的索引指向的节点
-	LinkedList<T_ELE>::PNODE ptr = mPtrList;
+	typename LinkedList<T_ELE>::PNODE ptr = mPtrList;
 	int idx = 0;
 	while (idx < index)
 	{
@@ -122,7 +122,7 @@ int LinkedList<T_ELE>::getElementIndex(T_ELE& element)
 
 	//2.循环遍历链表，找到与element相同的元素
 	int index = 0;
-	LinkedList<T_ELE>::PNODE ptr = mPtrList;
+	typename LinkedList<T_ELE>::PNODE ptr = mPtrList;
 	while (ptr)
 	{
 		if (memcmp(&(ptr->Data), &element, sizeof(T_ELE)) == 0)
@@ -142,7 +142,7 @@ int LinkedList<T_ELE>::insert(T_ELE element)
 	//1.判断链表是否为空
 	if (isEmpty())
 	{
-		LinkedList<T_ELE>::PNODE tmp = new NODE;
+		typename LinkedList<T_ELE>::PNODE tmp = new NODE;
 		tmp->pNext = NULL;
 		memcpy(tmp->Data, &element, sizeof(T_ELE));
 		mPtrList = tmp;
@@ -156,13 +156,13 @@ int LinkedList<T_ELE>::insert(T_ELE element)
 		return 0;
 	}
 
-	LinkedList<T_ELE>::PNODE ptrLast = mPtrList;
+	typename LinkedList<T_ELE>::PNODE ptrLast = mPtrList;
 	while (ptrLast->pNext)
 	{
 		ptrLast = ptrLast->pNext;
 	}
 
-	LinkedList<T_ELE>::PNODE tmp = new NODE;
+	typename LinkedList<T_ELE>::PNODE tmp = new NODE;
 	tmp->pNext = NULL;
 	memcpy(tmp->Data, &element, sizeof(T_ELE));
 	ptrLast->pNext = tmp;
@@ -182,7 +182,7 @@ int LinkedList<T_ELE>::insert(int index, T_ELE element)
 
 	//2.判断链表是否为空
 	
-	LinkedList<T_ELE>::PNODE tmp = new NODE;
+	typename LinkedList<T_ELE>::PNODE tmp = new NODE;
 	tmp->pNext = NULL;
 	memcpy(&tmp->Data; &element, sizeof(T_ELE));
 	
@@ -194,13 +194,13 @@ int LinkedList<T_ELE>::insert(int index, T_ELE element)
 	}
 	else if (index == mLen)  //4.如果索引为链表尾
 	{
-		LinkedList<T_ELE>::PNODE ptrLast = getIndexCurrentNode(index - 1);
+		typename LinkedList<T_ELE>::PNODE ptrLast = getIndexCurrentNode(index - 1);
 		ptrLast->pNext = tmp;
 	}
 	else //5.如果索引为链表中
 	{
-		LinkedList<T_ELE>::PNODE preNode = getIndexPreviousNode(index);
-		LinkedList<T_ELE>::PNODE nextNode = getIndexCurrentNdoe(index);
+		typename LinkedList<T_ELE>::PNODE preNode = getIndexPreviousNode(index);
+		typename LinkedList<T_ELE>::PNODE nextNode = getIndexCurrentNdoe(index);
 		preNode->pNext = tmp;
 		tmp->pNext = nextNode;
 	}
@@ -225,9 +225,9 @@ int LinkedList<T_ELE>::deleteElement(int index)
 		return INDEX_IS_ERROR;
 	}
 
-	LinkedList<T_ELE>::PNODE delNode = getIndexCurrentNode(index);
-	LinkedList<T_ELE>::PNODE preNode = getIndexPreviousNode(index);
-	LinkedList<T_ELE>::PNODE nextNode = getIndexNextNode(index);
+	PNODE delNode = getIndexCurrentNode(index);
+	PNODE preNode = getIndexPreviousNode(index);
+	PNODE nextNode = getIndexNextNode(index);
 
 	//3.如果链表中只有头结点，且要删除头节点
 	if (index == 0)
@@ -257,7 +257,7 @@ int LinkedList<T_ELE>::getSize()
 
 //获取index前面节点的地址
 template<class T_ELE>
-LinkedList<T_ELE>::PNODE LinkedList<T_ELE>::getIndexPreviousNode(int index)
+typename LinkedList<T_ELE>::PNODE LinkedList<T_ELE>::getIndexPreviousNode(int index)
 {
 	//就是一个循环
 	return getIndexCurrentNode(index - 1);
@@ -265,14 +265,14 @@ LinkedList<T_ELE>::PNODE LinkedList<T_ELE>::getIndexPreviousNode(int index)
 
 //获取index节点的地址
 template<class T_ELE>
-LinkedList<T_ELE>::PNODE LinkedList<T_ELE>::getIndexCurrentNode(int index)
+typename LinkedList<T_ELE>::PNODE LinkedList<T_ELE>::getIndexCurrentNode(int index)
 {
 	if (index < 0 || index >= mLen)
 	{
 		return NULL;
 	}
 
-	LinkedList<T_ELE>::PNODE res = mPtrList;
+	PNODE res = mPtrList;
 	while (index)
 	{
 		res = res->pNext;
@@ -283,9 +283,9 @@ LinkedList<T_ELE>::PNODE LinkedList<T_ELE>::getIndexCurrentNode(int index)
 }
 
 
-//获取index后面节点的地址
+//获取index后面节点的地址, typename关键字表明是变量类型（非变量）
 template<class T_ELE>
-LinkedList<T_ELE>::PNODE LinkedList<T_ELE>::getIndexNextNode(int index)
+typename LinkedList<T_ELE>::PNODE LinkedList<T_ELE>::getIndexNextNode(int index)
 {
 	return getIndexCurrentNode(index + 1);
 }
