@@ -1143,6 +1143,8 @@ LPVOID expendImportDirToNewSec(LPVOID pFileBuffer, LPVOID inFileBuffer, const ch
 	//新增的导入表大小
 	size += calSizeForAddImportTbl(inFileBuffer, dllName);
 
+	//printf("cal size:%d\n",size);
+
 	pFileBuffer = addSection(pFileBuffer, size);
 	PIMAGE_DOS_HEADER pDosHeader = (PIMAGE_DOS_HEADER)pFileBuffer;
 	PIMAGE_NT_HEADERS pNTHeader = (PIMAGE_NT_HEADERS)((DWORD)pFileBuffer + pDosHeader->e_lfanew);;
@@ -1176,7 +1178,7 @@ LPVOID expendImportDirToNewSec(LPVOID pFileBuffer, LPVOID inFileBuffer, const ch
 	
 	//修改目录属性
 	(pImageDataDirectory+1)->VirtualAddress = newPSH->VirtualAddress;
-	//(pImageDataDirectory+1)->isize = addrOffset;
+	(pImageDataDirectory+1)->isize = addrOffset - newPSH->PointerToRawData;  //实际的大小，包含结束部分
 
 	while(!isEndImportDescriptor(pNewImageDescriptor))
 	{
@@ -1258,18 +1260,38 @@ LPVOID expendImportDirToNewSec(LPVOID pFileBuffer, LPVOID inFileBuffer, const ch
 	pNewImageDescriptor->Name = addrOffset - newPSH->PointerToRawData + newPSH->VirtualAddress;
 	addrOffset += (strlen(dllName) + 1);
 
+	pNewImageDescriptor->OriginalFirstThunk = newPSH->VirtualAddress + (addrOffset - newPSH->PointerToRawData);
+	PIMAGE_THUNK_DATA32 pOrgFirstThunk = (PIMAGE_THUNK_DATA32)((DWORD)pFileBuffer + addrOffset);
 	//先直接考虑序号导出函数（名字的注入有排序性质）
 	for (int index = base; index < base + funcCnt; ++index)
 	{
-
+		if(getFuncAddrByOrdinal(inFileBuffer, index))
+		{
+			//构造结构
+			IMAGE_THUNK_DATA32 data = {0};
+			data.ul.AddressOfData = (PIMAGE_IMPORT_BY_NAME)(0x80000000 + index);
+			memcpy(pOrgFirstThunk, &data, sizeof(IMAGE_THUNK_DATA32));
+			pOrgFirstThunk++;
+			addrOffset += sizeof(IMAGE_THUNK_DATA32);
+		}
 	}
 
+	addrOffset += sizeof(IMAGE_THUNK_DATA32);
 
+	pNewImageDescriptor->FirstThunk = addrOffset - newPSH->PointerToRawData + newPSH->VirtualAddress;
+	pOrgFirstThunk = (PIMAGE_THUNK_DATA32)((DWORD)pFileBuffer + convRVAToOffset(pFileBuffer, pNewImageDescriptor->OriginalFirstThunk));
+	PIMAGE_THUNK_DATA32 pFirstThunk = (PIMAGE_THUNK_DATA32)((DWORD)pFileBuffer + addrOffset);
+	while(pOrgFirstThunk->ul.AddressOfData)
+	{
+		memcpy(pFirstThunk, pOrgFirstThunk, sizeof(IMAGE_THUNK_DATA32));
+		pOrgFirstThunk++;
+		pFirstThunk++;
+		addrOffset += sizeof(IMAGE_THUNK_DATA32);
+	}
 
+	addrOffset += sizeof(IMAGE_THUNK_DATA32);
 
-
-
-
+	//printf("final size:%d\n", addrOffset - newPSH->PointerToRawData);
 
 
 	return pFileBuffer;
@@ -1301,16 +1323,27 @@ DWORD calSizeForAddImportTbl(LPVOID pFileBuffer, const char* dllName)
 	DWORD* funcAddr = (DWORD*)((DWORD)pFileBuffer + convRVAToOffset(pFileBuffer, pImageExportDirectory->AddressOfFunctions));
 	DWORD* funcNamesAddr = (DWORD*)((DWORD)pFileBuffer + convRVAToOffset(pFileBuffer, pImageExportDirectory->AddressOfNames));
 	WORD* funcNameOrdAddr = (WORD*)((DWORD)pFileBuffer + convRVAToOffset(pFileBuffer, pImageExportDirectory->AddressOfNameOrdinals));
+	DWORD base = pImageExportDirectory->Base;
 
-	size += sizeof(IMAGE_EXPORT_DIRECTORY);
-	size += 4 * funcCnt;
-	size += (4 + 2) * nameCnt;
+	//size += sizeof(IMAGE_EXPORT_DIRECTORY);
+	//size += 4 * funcCnt;
+	//size += (4 + 2) * nameCnt;
 
-	for (int idx = 0; idx < nameCnt; ++idx)
+	//for (int idx = 0; idx < nameCnt; ++idx)
+	//{
+	//	char* pFuncName = (char*)((DWORD)pFileBuffer + convRVAToOffset(pFileBuffer, funcNamesAddr[idx]));
+	//	size += (strlen(pFuncName) + 1);
+	//}
+
+	for (int index = base; index < base + funcCnt; ++index)
 	{
-		char* pFuncName = (char*)((DWORD)pFileBuffer + convRVAToOffset(pFileBuffer, funcNamesAddr[idx]));
-		size += (strlen(pFuncName) + 1);
+		if(getFuncAddrByOrdinal(pFileBuffer, index))
+		{
+			size += (2 * sizeof(IMAGE_THUNK_DATA32));
+		}
 	}
+
+	size += (2 * sizeof(IMAGE_THUNK_DATA32));
 
 
 	return size;
