@@ -28,22 +28,23 @@ HINSTANCE hAppIns;
 int APIENTRY wWinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance, _In_ LPTSTR lpCmdLine, _In_ int nCmdShow)
 {
 	hAppIns = hInstance;
-	int a = 100;
-	DbgPrintf("=============================================");
-	hDialog = DialogBox(hInstance, MAKEINTRESOURCE(IDD_DIALOG1), NULL, DialogProc);	
+	hDialog = DialogBox(hInstance, MAKEINTRESOURCE(IDD_DIALOG1), NULL, DialogProc);
 
-	DbgPrintf("hEditUser:%d", (int)hDialog);
 	
 	return 0;
 }
 
 INT_PTR CALLBACK DialogProc(HWND hwndDlg, UINT uMsg, WPARAM wParam, LPARAM lParam)
 {
-
+	HICON hIcon;
 	switch(uMsg)
 	{
 	case WM_INITDIALOG:
 		//MessageBox(NULL, TEXT("WM_INITDIALOG"), TEXT("INIT"), MB_OK);
+		hIcon = LoadIcon(hAppIns, MAKEINTRESOURCE(IDI_ICON_BIG));
+		SendMessage(hwndDlg, WM_SETICON, ICON_BIG, (DWORD)hIcon);
+		hIcon = LoadIcon(hAppIns, MAKEINTRESOURCE(IDI_ICON_SMALL));
+		SendMessage(hwndDlg, WM_SETICON, ICON_SMALL, (DWORD)hIcon);
 		return TRUE;
 	case WM_COMMAND:
 		HWND hEditUser;
@@ -52,10 +53,9 @@ INT_PTR CALLBACK DialogProc(HWND hwndDlg, UINT uMsg, WPARAM wParam, LPARAM lPara
 		switch(LOWORD(wParam))
 		{
 		case IDC_BUTTON_OK:
-			hEditUser = GetDlgItem((HWND)hAppIns, IDC_EDIT_USER);
-			hEditAccount = GetDlgItem((HWND)hDialog, IDC_EDIT_ACCOUNT);
+			hEditUser = GetDlgItem((HWND)hwndDlg, IDC_EDIT_USER);
+			hEditAccount = GetDlgItem((HWND)hwndDlg, IDC_EDIT_ACCOUNT);
 			GetWindowText(hEditUser, szBuffer, 0x50);
-			DbgPrintf("hEditUser:%d, %d", (int)hEditUser, (int)hDialog);
 			DbgPrintf("user name: %s", szBuffer);
 			GetWindowText(hEditAccount, szBuffer, 0x50);
 			DbgPrintf("user account: %s", szBuffer);
@@ -63,6 +63,7 @@ INT_PTR CALLBACK DialogProc(HWND hwndDlg, UINT uMsg, WPARAM wParam, LPARAM lPara
 			return TRUE;
 		case IDC_BUTTON_CANCEL:
 			//MessageBox(NULL, TEXT("IDC_BUTTON_OUT"), TEXT("OUT"), MB_OK);
+			EndDialog(hwndDlg, 0);
 			return TRUE;
 		}
 		break;
