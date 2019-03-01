@@ -105,7 +105,14 @@ INT_PTR CALLBACK DialogProc(HWND hwndDlg, UINT uMsg, WPARAM wParam, LPARAM lPara
 			//::CloseHandle(hThread);	
 			return TRUE;
 		case IDC_BUTTON_2:
+			{
 			::SuspendThread(hThread);
+			/*CONTEXT context;
+			context.ContextFlags = CONTEXT_CONTROL;
+			BOOL ok = ::GetThreadContext(hThread, &context);
+			context.Eip = 0x401000;
+			SetThreadContext(hThread, &context);*/
+			}
 			return TRUE;
 		case IDC_BUTTON_3:
 			::ResumeThread(hThread);
