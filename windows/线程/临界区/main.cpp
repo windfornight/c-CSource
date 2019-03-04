@@ -3,6 +3,8 @@
 
 CRITICAL_SECTION cs;
 
+CRITICAL_SECTION cs2;
+
 void __cdecl OutputDebugStringF(const char *format, ...)  
 {  
 	va_list vlArgs;  
@@ -22,7 +24,10 @@ DWORD WINAPI ThreadProc1(LPVOID lpParameter)
 	{
 		EnterCriticalSection(&cs); 
 		Sleep(1000);
+		//OutputDebugStringF("============1111===========");
+		//EnterCriticalSection(&cs2);
 		OutputDebugStringF("1111:%d, %x, %x\n", cs.LockCount, cs.RecursionCount, cs.OwningThread);  //
+		//LeaveCriticalSection(&cs2);
 		LeaveCriticalSection(&cs);
 	}
 	return 0;
@@ -33,8 +38,13 @@ DWORD WINAPI ThreadProc2(LPVOID lpParameter)
 	for(int x = 0; x < 1000; x++)
 	{
 		EnterCriticalSection(&cs);
+		//EnterCriticalSection(&cs2);
 		Sleep(1000);
+		//OutputDebugStringF("======22222=========");
+		//EnterCriticalSection(&cs);
 		OutputDebugStringF("2222:%d, %x, %x\n", cs.LockCount, cs.RecursionCount, cs.OwningThread);
+		//LeaveCriticalSection(&cs);
+		//LeaveCriticalSection(&cs2);
 		LeaveCriticalSection(&cs);
 	}
 	return 0;
@@ -68,6 +78,7 @@ DWORD WINAPI ThreadProc4(LPVOID lpParameter)
 int APIENTRY wWinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance, _In_ LPTSTR lpCmdLine, _In_ int nCmdShow)
 {
 	InitializeCriticalSection(&cs);  //初始化临界区
+	InitializeCriticalSection(&cs2);
 
 	HANDLE hThread1 = ::CreateThread(NULL, 0, ThreadProc1, NULL, 0, NULL);
 
@@ -85,7 +96,7 @@ int APIENTRY wWinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance
 	Sleep(1000*60*60);
 	
 	DeleteCriticalSection(&cs);  //删除临界区
-
+	DeleteCriticalSection(&cs2);
 
 	return 0;
 }
