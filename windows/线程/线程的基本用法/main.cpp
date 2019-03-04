@@ -21,11 +21,14 @@ INT_PTR hDialog;
 HINSTANCE hAppIns;
 HWND labelHandler;
 HANDLE hThread;
+CRITICAL_SECTION cs;
 
 int APIENTRY wWinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance, _In_ LPTSTR lpCmdLine, _In_ int nCmdShow)
 {
+	InitializeCriticalSection(&cs);
 	hAppIns = hInstance;
 	hDialog = DialogBox(hInstance, MAKEINTRESOURCE(IDD_DIALOG1), NULL, DialogProc);	
+	DeleteCriticalSection(&cs);
 	return 0;
 }
 
@@ -89,6 +92,77 @@ DWORD WINAPI ThreadProc(LPVOID lpParameter)
 	return 0;
 }
 
+
+DWORD WINAPI ThreadProc1(LPVOID lpParameter)
+{
+
+	WCHAR wstrBuff[5] = {0};
+	char strBuff[10] = {0};
+	int timeNum = 0;
+	int count = 0;
+
+	
+	while(count < 10)
+	{
+		memset(wstrBuff, 0, 10);
+		memset(strBuff, 0, 10);
+		EnterCriticalSection(&cs);
+		GetWindowText(labelHandler, wstrBuff, 10);
+		Sleep(100);
+		W2C(strBuff, wstrBuff);
+		sscanf(strBuff, "%d", &timeNum);
+		timeNum++;
+		sprintf(strBuff, "%d", timeNum);
+		C2W(wstrBuff, strBuff);
+		SetWindowText(labelHandler, wstrBuff);
+		LeaveCriticalSection(&cs);
+		count++;
+	}
+	
+
+	//释放资源
+
+	return 0;
+}
+
+DWORD WINAPI ThreadProc2(LPVOID lpParameter)
+{
+
+	WCHAR wstrBuff[5] = {0};
+	char strBuff[10] = {0};
+	int timeNum = 0;
+	int count = 0;
+
+
+	while(count < 10)
+	{
+		memset(wstrBuff, 0, 10);
+		memset(strBuff, 0, 10);
+		EnterCriticalSection(&cs);
+		GetWindowText(labelHandler, wstrBuff, 10);
+		Sleep(100);
+		W2C(strBuff, wstrBuff);
+		sscanf(strBuff, "%d", &timeNum);
+		timeNum++;
+		sprintf(strBuff, "%d", timeNum);
+		C2W(wstrBuff, strBuff);
+		SetWindowText(labelHandler, wstrBuff);
+		LeaveCriticalSection(&cs);
+		count++;
+	}
+
+
+	//释放资源
+
+	return 0;
+}
+
+
+
+
+
+
+
 INT_PTR CALLBACK DialogProc(HWND hwndDlg, UINT uMsg, WPARAM wParam, LPARAM lParam)
 {
 	switch(uMsg)
@@ -102,10 +176,12 @@ INT_PTR CALLBACK DialogProc(HWND hwndDlg, UINT uMsg, WPARAM wParam, LPARAM lPara
 		{
 		case IDC_BUTTON_START:
 			hThread = ::CreateThread(NULL, 0, ThreadProc, NULL, 0, NULL);
-			//::CloseHandle(hThread);	
+			//::CloseHandle(hThread);
+			//hThread = ::CreateThread(NULL, 0, ThreadProc1, NULL, 0, NULL);
 			return TRUE;
 		case IDC_BUTTON_2:
 			{
+			//hThread = ::CreateThread(NULL, 0, ThreadProc2, NULL, 0, NULL);
 			::SuspendThread(hThread);
 			/*CONTEXT context;
 			context.ContextFlags = CONTEXT_CONTROL;
