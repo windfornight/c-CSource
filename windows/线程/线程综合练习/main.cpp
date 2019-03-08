@@ -40,32 +40,32 @@ DWORD WINAPI ThreadProcWrite(LPVOID lpParameter)
 	WCHAR wstr[2] = {0};
 	while(wchar)
 	{
-		BOOL hasWrite = false;
 		if(IsEditEmpty(hLabelBuffA))
 		{
 			EnterCriticalSection(&csA);
-			wstr[0] = wchar;
-			SetWindowText(hLabelBuffA, wstr);
-			LeaveCriticalSection(&csA);
-			wchar = wstrBuff[++index];
-			hasWrite = true;
+			if(IsEditEmpty(hLabelBuffA))
+			{
+				wstr[0] = wchar;
+				SetWindowText(hLabelBuffA, wstr);
+				wchar = wstrBuff[++index];
+	
+			}
+			LeaveCriticalSection(&csA);	
 		}else if(IsEditEmpty(hLabelBuffB))
 		{
 			EnterCriticalSection(&csB);
-			wstr[0] = wchar;
-			SetWindowText(hLabelBuffB, wstr);
+			if(IsEditEmpty(hLabelBuffB))
+			{
+				wstr[0] = wchar;
+				SetWindowText(hLabelBuffB, wstr);
+				wchar = wstrBuff[++index];
+			}
 			LeaveCriticalSection(&csB);
-			wchar = wstrBuff[++index];
-			hasWrite = true;
 		}
-		Sleep(1000);
-		if(hasWrite)
-		{
-			ReleaseSemaphore(hSemaphore, 1, NULL);
-		}
+		//Sleep(1000);
 	}
 	isOver = true;
-	ReleaseSemaphore(hSemaphore, 2, NULL);
+	
 	return 0;
 }
 
@@ -85,25 +85,35 @@ DWORD WINAPI ThreadProcRead(LPVOID lpParameter)
 	while(true)
 	{
 		WaitForSingleObject(hSemaphore, INFINITE);
-		if(!IsEditEmpty(hLabelBuffA))  //有问题  (先锁再判断)
+		memset(wstr, 0, 4);
+		if(!IsEditEmpty(hLabelBuffA))  //好像并不能并行
 		{
 			EnterCriticalSection(&csA);
-			GetWindowText(hLabelBuffA, wstr, 2);
-			SetWindowText(hLabelBuffA, L"0");
+			Sleep(1000);
+			if (!IsEditEmpty(hLabelBuffA))
+			{
+				GetWindowText(hLabelBuffA, wstr, 2);
+				SetWindowText(hLabelBuffA, L"0");
+				addWindowText(hEdit, wstr);
+			}
 			LeaveCriticalSection(&csA);
-			addWindowText(hEdit, wstr);
+			
 		}else if(!IsEditEmpty(hLabelBuffB))
 		{
 			EnterCriticalSection(&csB);
-			GetWindowText(hLabelBuffB, wstr, 2);
-			SetWindowText(hLabelBuffB, L"0");
+			if(!IsEditEmpty(hLabelBuffB))
+			{
+				GetWindowText(hLabelBuffB, wstr, 2);
+				SetWindowText(hLabelBuffB, L"0");
+				addWindowText(hEdit, wstr);
+			}
 			LeaveCriticalSection(&csB);
-			addWindowText(hEdit, wstr);
+			
 		}else if(isOver)
 		{
 			break;
 		}
-		//ReleaseSemaphore(hSemaphore, 1, NULL);
+		ReleaseSemaphore(hSemaphore, 1, NULL);
 	}
 	ReleaseSemaphore(hSemaphore, 1, NULL);
 	return 0;
@@ -123,7 +133,7 @@ DWORD WINAPI ThreadProc(LPVOID lpParameter)
 	hThreadArr[3] = CreateThread(NULL, 0, ThreadProcRead, (LPVOID)2, 0, NULL);
 	hThreadArr[4] = CreateThread(NULL, 0, ThreadProcRead, (LPVOID)3, 0, NULL);
 
-	//ReleaseSemaphore(hSemaphore, 2, NULL);
+	ReleaseSemaphore(hSemaphore, 2, NULL);
 
 	WaitForMultipleObjects(5, hThreadArr, TRUE, INFINITE);
 
